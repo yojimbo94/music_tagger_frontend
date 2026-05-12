@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite;
+}
+
+/* Style pour les tags */
+.tag-style {
+  @apply px-2 py-1 text-xs rounded-full;
+}
+
+/* Style pour les statuts */
+.status-matched {
+  @apply text-green-600;
+}
+
+.status-failed {
+  @apply text-red-600;
+}
+
+.status-processing {
+  @apply text-amber-600;
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full hover:bg-gray-400;
+}
+
+/* Style pour les inputs */
+input:focus,
+select:focus,
+textarea:focus {
+  @apply outline-none ring-2 ring-blue-500 border-transparent;
+}
+
+/* Style pour les boutons */
+button {
+  @apply transition-colors duration-200;
+}
+
+button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Style pour les liens */
+a {
+  @apply text-blue-600 hover:underline;
+}
+
+/* Style pour les cartes */
+.card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200;
+}
