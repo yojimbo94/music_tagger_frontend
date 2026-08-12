@@ -3,6 +3,7 @@ import Tag from './Tag'
 
 function FilterBar({ filters, setFilters, allTags }) {
   const [showTagDropdown, setShowTagDropdown] = useState(false)
+  const [tagSearchQuery, setTagSearchQuery] = useState('')
 
   const handleSearchChange = (e) => {
     setFilters({ ...filters, search: e.target.value })
@@ -18,6 +19,14 @@ function FilterBar({ filters, setFilters, allTags }) {
       : [...filters.tags, tag]
     setFilters({ ...filters, tags: newTags })
   }
+
+  // Filtrer et trier les tags avec un ET logique
+  const filteredAndSortedTags = allTags
+    .filter(tag => {
+      const queryTerms = tagSearchQuery.toLowerCase().split(' ').filter(term => term.trim() !== '');
+      return queryTerms.every(term => tag.toLowerCase().includes(term));
+    })
+    .sort((a, b) => a.localeCompare(b))
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -62,15 +71,24 @@ function FilterBar({ filters, setFilters, allTags }) {
             onClick={() => setShowTagDropdown(!showTagDropdown)}
             className="px-3 py-2 border border-gray-300 rounded-md bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
           >
-            {filters.tags.length > 0 
-              ? `${filters.tags.length} tag(s) sélectionné(s)` 
+            {filters.tags.length > 0
+              ? `${filters.tags.length} tag(s) sélectionné(s)`
               : 'Filtrer par tags'}
           </button>
-          
+
           {showTagDropdown && (
             <div className="absolute z-10 mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-2 w-48 max-h-60 overflow-y-auto">
+              {/* Champ de recherche pour les tags */}
+              <input
+                type="text"
+                placeholder="Rechercher un tag..."
+                value={tagSearchQuery}
+                onChange={(e) => setTagSearchQuery(e.target.value)}
+                className="w-full px-2 py-1 mb-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
               <div className="space-y-2">
-                {allTags.map((tag) => (
+                {filteredAndSortedTags.map((tag) => (
                   <div key={tag} className="flex items-center">
                     <input
                       type="checkbox"
@@ -79,7 +97,7 @@ function FilterBar({ filters, setFilters, allTags }) {
                       onChange={() => toggleTag(tag)}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <label 
+                    <label
                       htmlFor={`tag-${tag}`}
                       className="ml-2 text-sm text-gray-700 cursor-pointer"
                     >
@@ -88,6 +106,7 @@ function FilterBar({ filters, setFilters, allTags }) {
                   </div>
                 ))}
               </div>
+
               {filters.tags.length > 0 && (
                 <button
                   onClick={() => setFilters({ ...filters, tags: [] })}
@@ -98,12 +117,12 @@ function FilterBar({ filters, setFilters, allTags }) {
               )}
             </div>
           )}
-          
+
           {/* Tags sélectionnés */}
           {filters.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {filters.tags.map((tag) => (
-                <div 
+                <div
                   key={tag}
                   className="flex items-center bg-blue-100 rounded-full px-2 py-1"
                 >
@@ -141,3 +160,4 @@ function FilterBar({ filters, setFilters, allTags }) {
 }
 
 export default FilterBar
+
