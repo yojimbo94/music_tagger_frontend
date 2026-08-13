@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import { List } from 'react-window';
 import TrackRow, { ROW_HEIGHT, ROW_GRID_CLASS } from './TrackRow';
 
@@ -19,9 +19,17 @@ const TracksTable = memo(function TracksTable({ tracks, onSelectTrack, sortConfi
 
   const sortableHeaderClass = 'cursor-pointer select-none hover:text-gray-700 transition-colors';
 
-  // Référence stable tant que `tracks`/`onSelectTrack` ne changent pas vraiment,
-  // pour éviter de refaire un cycle de mesure react-window à chaque frappe.
-  const rowProps = useMemo(() => ({ tracks, onSelectTrack }), [tracks, onSelectTrack]);
+  // On ne passe JAMAIS le tableau `tracks` (des milliers d'objets) tel quel en prop
+  // à chaque ligne : React (dev, 19+) diffe récursivement les props qui changent de
+  // référence pour son panneau Performance "Components", et un diff récursif sur un
+  // tableau de ~3700 objets à chaque re-render a suffi à geler l'onglet plusieurs
+  // secondes (mesuré au profiler CPU). On passe à la place une fonction stable
+  // (toujours la même référence) qui lit `tracks` via une ref — cheap à differ.
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+  const getTrack = useCallback((index) => tracksRef.current[index], []);
+
+  const rowProps = useMemo(() => ({ getTrack, onSelectTrack }), [getTrack, onSelectTrack]);
 
   const headerButton = (label, columnKey) => (
     <button

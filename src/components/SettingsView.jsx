@@ -45,9 +45,6 @@ function SettingsView() {
       <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
         <h2 className="text-lg font-medium text-gray-900 mb-1">Styles attendus (alertes)</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Une track matchée ou taguée manuellement dont aucun style n'apparaît dans cette liste
-          affichera un badge ⚠️ dans la liste des tracks — pas forcément une erreur, juste un
-          signal à vérifier. Laissez la liste vide pour désactiver les alertes.
         </p>
         <TagPicker
           value={selected}

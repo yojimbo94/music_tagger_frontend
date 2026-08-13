@@ -22,12 +22,12 @@ export const ROW_HEIGHT = 56
 export const ROW_GRID_CLASS =
   'grid grid-cols-[28px_64px_84px_56px_minmax(160px,2fr)_minmax(140px,1.5fr)_minmax(160px,1.5fr)_88px] items-center gap-2 px-3'
 
-function TrackRow({ index, style, tracks, onSelectTrack }) {
+function TrackRow({ index, style, getTrack, onSelectTrack }) {
   // Le virtualiseur peut redemander un rendu pour `index` un tick avant que le
-  // tableau `tracks` (recalculé par le filtrage/tri) n'ait rétréci en cohérence
+  // tableau tracks (recalculé par le filtrage/tri) n'ait rétréci en cohérence
   // (ex: en tapant vite dans la recherche) — sans ce garde-fou, l'accès à un
   // track undefined faisait planter tout l'arbre React (écran blanc).
-  const track = tracks[index]
+  const track = getTrack(index)
 
   const derived = useMemo(() => {
     if (!track) return null

@@ -349,11 +349,8 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
                             <section className="mt-6 rounded-lg border border-gray-200 bg-blue-50/50 p-4 shadow-sm">
                                 <div className="mb-4">
                                     <h3 className="text-base font-semibold text-gray-900">
-                                        Ajouter un tag manuellement
+                                        Tag manuel
                                     </h3>
-                                    <p className="mt-1 text-sm text-gray-600">
-                                        Sans match Discogs, choisissez directement le(s) style(s)/genre(s) pour router ce titre vers les playlists correspondantes.
-                                    </p>
                                 </div>
                                 <div className="space-y-3">
                                     <div>
@@ -382,10 +379,10 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
                                         <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                                     </svg>
-                                    Changer le match Discogs
+                                    Fix manuel release discogs
                                 </h3>
                                 <p className="mt-1 text-sm text-gray-600">
-                                    Entrez l'URL d'une release Discogs pour recalculer la correspondance.
+                                    URL release discogs
                                 </p>
                             </div>
 
