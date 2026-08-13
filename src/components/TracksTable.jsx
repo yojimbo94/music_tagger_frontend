@@ -7,7 +7,7 @@ const SORTABLE_COLUMNS = {
   title: 'source_title',
   album: 'discogs_album',
   tags: 'styles',
-  date: 'date',
+  date: 'date', // ← Utilise la nouvelle propriété
 };
 
 const TracksTable = memo(function TracksTable({ tracks, onSelectTrack, sortConfig, onSort }) {

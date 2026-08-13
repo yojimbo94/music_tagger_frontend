@@ -1,11 +1,142 @@
-import { useState } from 'react'
-import { useApp } from '../context/AppContext'
-import TrackList from './TrackList'
-import ProcessingStatus from './ProcessingStatus'
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useApp } from '../context/AppContext';
+import TracksTable from './TracksTable'; // ← Remplace TrackList
+import TrackDetailsModal from './TrackDetailsModal'; // ← À importer
+import ProcessingStatus from './ProcessingStatus';
+import FilterBar from './FilterBar';
 
 function MainLayout() {
-    const [activeTab, setActiveTab] = useState('tracks')
-    const { startProcessing, addNotification } = useApp()
+    const [activeTab, setActiveTab] = useState('tracks');
+    const [tracks, setTracks] = useState([]); // ← État des tracks
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [selectedTrack, setSelectedTrack] = useState(null); // ← Pour la modale
+    const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+    const [filters, setFilters] = useState({ search: '', status: 'all', tags: [] }); // ← Pour les filtres
+    const [allTags, setAllTags] = useState([]);
+
+    const { startProcessing, addNotification, setIsLoading } = useApp();
+
+    // --- 1. Récupération des tracks (ancienne logique de TrackList) ---
+    const fetchTracks = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            setLoading(true);
+            const response = await fetch('http://127.0.0.1:5000/api/tracks');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            const nextTracks = (data.tracks || []).map(track => ({
+            ...track,
+            date: track.created_at ? new Date(track.created_at).getTime() : null
+            }));
+            setTracks(nextTracks);
+
+            // Extraire les tags
+            const tagsSet = new Set();
+            nextTracks.forEach(track => {
+                track.styles?.forEach(tag => tagsSet.add(tag));
+                track.genres?.forEach(tag => tagsSet.add(tag));
+            });
+            setAllTags(Array.from(tagsSet));
+
+            addNotification('success', `${nextTracks.length} tracks chargés`);
+        } catch (err) {
+            setError(err.message);
+            addNotification('error', `Erreur: ${err.message}`);
+        } finally {
+            setIsLoading(false);
+            setLoading(false);
+        }
+    }, [setIsLoading, addNotification]);
+
+    useEffect(() => {
+        fetchTracks();
+    }, [fetchTracks]);
+
+    // --- 2. Logique de tri ---
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // --- 3. Tri des tracks ---
+    const sortedTracks = useMemo(() => {
+    if (!sortConfig.key) return tracks;
+    return [...tracks].sort((a, b) => {
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+
+        // Cas spécial pour la date (comparaison numérique)
+        if (sortConfig.key === 'date') {
+        const aDate = aValue || 0;
+        const bDate = bValue || 0;
+        return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
+        }
+
+        // Cas général (chaînes)
+        const strA = (aValue || '').toString().toLowerCase();
+        const strB = (bValue || '').toString().toLowerCase();
+        if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+    }, [tracks, sortConfig]);
+
+    // --- 4. Filtrage des tracks (optionnel, si tu veux garder les filtres) ---
+    const filteredTracks = useMemo(() => {
+        return sortedTracks.filter(track => {
+            // Filtre par statut
+            if (filters.status !== 'all' && track.status !== filters.status) return false;
+            // Filtre par recherche
+            if (filters.search) {
+                const searchLower = filters.search.trim().toLowerCase();
+                const searchableText = [
+                    track.source_title,
+                    track.source_artist,
+                    track.discogs_album,
+                    track.discogs_artist,
+                    track.source,
+                    track.source_album,
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (!searchableText.includes(searchLower)) return false;
+            }
+            // Filtre par tags
+            if (filters.tags.length > 0) {
+                const trackTags = [...(track.styles || []), ...(track.genres || [])];
+                if (!filters.tags.some(tag => trackTags.includes(tag))) return false;
+            }
+            return true;
+        });
+    }, [sortedTracks, filters]);
+
+    // --- 5. Gestion de la modale ---
+    const handleSelectTrack = useCallback((track) => {
+        setSelectedTrack(track);
+    }, []);
+
+    const handleCloseModal = useCallback(() => {
+        setSelectedTrack(null);
+    }, []);
+
+    // --- 6. Mise à jour Discogs (optionnel) ---
+    const handleUpdateDiscogs = useCallback(async (track, discogsUrl) => {
+        try {
+            // TODO: Appeler l'API pour mettre à jour
+            addNotification('success', `Track ${track.source_title} mise à jour`);
+            setSelectedTrack(null);
+            // Mise à jour locale (à adapter)
+            setTracks(prev => prev.map(t =>
+                t.source === track.source && t.source_track_id === track.source_track_id
+                    ? { ...t, discogs_url: discogsUrl, status: 'matched' }
+                    : t
+            ));
+        } catch (error) {
+            addNotification('error', `Erreur: ${error.message}`);
+        }
+    }, [addNotification]);
 
     const handleStartProcessing = async (service) => {
         startProcessing(service);
@@ -22,7 +153,7 @@ function MainLayout() {
                 addNotification('success', `${syncData.tracks_synced} tracks synchronisées depuis ${service}`);
             } else if (service === 'all') {
                 // Synchroniser les deux services
-                const syncResponse = await fetch('/process/sync/all', { method: 'POST' });
+                const syncResponse = await fetch('http://127.0.0.1:5000/api/process', { method: 'POST' });
                 const syncData = await syncResponse.json();
                 addNotification('success', `${syncData.total} tracks synchronisées au total`);
             }
@@ -78,29 +209,18 @@ function MainLayout() {
             addNotification('error', `Erreur: ${error.message}`);
         }
     };
-
-    // Simulation du processing pour démo
-    const simulateProcessing = async (service) => {
-        const total = service ? 50 : 100
-        let processed = 0
-
-        while (processed < total) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            processed += Math.floor(Math.random() * 5) + 1
-            // Mettre à jour la progression via le contexte
-            // En vrai, ces données viendraient de l'API
-            const progress = Math.min((processed / total) * 100, 100)
-            const matched = processed - Math.floor(processed * 0.1) // 90% de succès
-            const failed = processed - matched
-
-            // Ici tu mettras à jour le contexte avec les vraies données de l'API
-            // updateProcessingProgress(progress, { total, processed, matched, failed })
-        }
-    }
+    // --- 8. Constante pour le tri (à ajouter) ---
+    const SORTABLE_COLUMNS = {
+    status: 'status',
+    source: 'source',
+    title: 'source_title',
+    album: 'discogs_album',
+    tags: 'styles',
+    date: 'date', // ← Utilise la nouvelle propriété
+    };
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
             <header className="bg-white shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
@@ -131,44 +251,56 @@ function MainLayout() {
                     </div>
                 </div>
             </header>
-
-            {/* Onglets */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                        <button
-                            onClick={() => setActiveTab('tracks')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'tracks' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                        >
-                            Tracks
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('stats')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'stats' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                        >
-                            Statistiques
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('settings')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'settings' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                        >
-                            Paramètres
-                        </button>
-                    </nav>
-                </div>
-            </div>
-
             {/* Contenu principal */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {activeTab === 'tracks' && <TrackList />}
+                {activeTab === 'tracks' && (
+                    <>
+                        {/* Barre de filtres (optionnelle) */}
+                        <FilterBar
+                            filters={filters}
+                            setFilters={setFilters}
+                            allTags={allTags}
+                        />
+
+                        {/* Affichage des filtres actifs */}
+                        {(filters.search || filters.status !== 'all' || filters.tags.length > 0) && (
+                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800 mb-4">
+                                <span className="font-medium">Filtres actifs:</span>
+                                {filters.search && <span className="ml-2">Recherche: "{filters.search}"</span>}
+                                {filters.status !== 'all' && <span className="ml-2">Statut: {filters.status}</span>}
+                                {filters.tags.length > 0 && <span className="ml-2">Tags: {filters.tags.join(', ')}</span>}
+                                {filteredTracks.length < tracks.length && (
+                                    <span className="ml-2">({filteredTracks.length} / {tracks.length} tracks)</span>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Tableau des tracks */}
+                        <TracksTable
+                            tracks={filteredTracks} // ← Tracks filtrés et triés
+                            onSelectTrack={handleSelectTrack} // ← Gestion de la sélection
+                            sortConfig={sortConfig} // ← Configuration du tri
+                            onSort={requestSort} // ← Fonction de tri
+                        />
+
+                        {/* Modale de détails */}
+                        {selectedTrack && (
+                            <TrackDetailsModal
+                                track={selectedTrack}
+                                onClose={handleCloseModal}
+                                onUpdateDiscogs={handleUpdateDiscogs}
+                            />
+                        )}
+                    </>
+                )}
                 {activeTab === 'stats' && <div>Statistiques à implémenter</div>}
                 {activeTab === 'settings' && <div>Paramètres à implémenter</div>}
             </main>
 
-            {/* Barre de statut de processing */}
+            {/* Barre de statut */}
             <ProcessingStatus />
         </div>
-    )
+    );
 }
 
-export default MainLayout
+export default MainLayout;

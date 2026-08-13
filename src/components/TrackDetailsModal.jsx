@@ -312,7 +312,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
                         </div>
 
                         {/* Discogs Update Section */}
-                        {track.status === 'matched' && (
+                        
                             <section className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-sm">
                                 <div className="mb-4">
                                     <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
@@ -387,7 +387,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
                                     )}
                                 </div>
                             </section>
-                        )}
+                        
                     </main>
                 </div>
 
