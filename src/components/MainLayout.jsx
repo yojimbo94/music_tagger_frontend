@@ -1,45 +1,76 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext';
-import TracksTable from './TracksTable'; // ← Remplace TrackList
-import TrackDetailsModal from './TrackDetailsModal'; // ← À importer
+import { useProcessingSocket } from '../hooks/useProcessingSocket';
+import { getTracks, startProcessing as apiStartProcessing } from '../api/client';
+import TracksTable from './TracksTable';
+import TrackDetailsModal from './TrackDetailsModal';
 import ProcessingStatus from './ProcessingStatus';
+import ProcessingLauncher from './ProcessingLauncher';
 import FilterBar from './FilterBar';
+import PlaylistsView from './PlaylistsView';
+import SettingsView from './SettingsView';
+import BlindTestView from './BlindTestView';
+
+const TABS = [
+    { key: 'tracks', label: 'Tracks' },
+    { key: 'playlists', label: 'Playlists' },
+    { key: 'settings', label: 'Paramètres' },
+    { key: 'blindtest', label: 'Blind test' },
+];
 
 function MainLayout() {
     const [activeTab, setActiveTab] = useState('tracks');
-    const [tracks, setTracks] = useState([]); // ← État des tracks
+    const [tracks, setTracks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [selectedTrack, setSelectedTrack] = useState(null); // ← Pour la modale
+    const [selectedTrack, setSelectedTrack] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
-    const [filters, setFilters] = useState({ search: '', status: 'all', tags: [] }); // ← Pour les filtres
+    const [filters, setFilters] = useState({ search: '', status: 'all', tags: [], alertsOnly: false });
     const [allTags, setAllTags] = useState([]);
 
-    const { startProcessing, addNotification, setIsLoading } = useApp();
+    const {
+        startProcessing,
+        addNotification,
+        setIsLoading,
+        handleProcessingStarted,
+        handleProcessingProgress,
+        handleProcessingDone
+    } = useApp();
 
-    // --- 1. Récupération des tracks (ancienne logique de TrackList) ---
+    // --- Suivi temps réel du processing (Socket.IO) ---
+    useProcessingSocket({
+        onStarted: handleProcessingStarted,
+        onProgress: handleProcessingProgress,
+        onDone: (payload) => {
+            handleProcessingDone(payload);
+            if (payload.total > 0) {
+                addNotification('success', 'Processing terminé !');
+                fetchTracks();
+            }
+        },
+        onError: (payload) => {
+            addNotification('error', `Processing (${payload.source}) impossible : ${payload.message}`, 10000);
+        }
+    });
+
+    // --- Récupération des tracks ---
     const fetchTracks = useCallback(async () => {
         try {
             setIsLoading(true);
             setLoading(true);
-            const response = await fetch('http://127.0.0.1:5000/api/tracks');
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
+            const data = await getTracks();
             const nextTracks = (data.tracks || []).map(track => ({
-            ...track,
-            date: track.created_at ? new Date(track.created_at).getTime() : null
+                ...track,
+                date: track.created_at ? new Date(track.created_at).getTime() : null
             }));
             setTracks(nextTracks);
 
-            // Extraire les tags
             const tagsSet = new Set();
             nextTracks.forEach(track => {
                 track.styles?.forEach(tag => tagsSet.add(tag));
                 track.genres?.forEach(tag => tagsSet.add(tag));
             });
             setAllTags(Array.from(tagsSet));
-
-            addNotification('success', `${nextTracks.length} tracks chargés`);
         } catch (err) {
             setError(err.message);
             addNotification('error', `Erreur: ${err.message}`);
@@ -53,7 +84,7 @@ function MainLayout() {
         fetchTracks();
     }, [fetchTracks]);
 
-    // --- 2. Logique de tri ---
+    // --- Tri ---
     const requestSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -62,37 +93,39 @@ function MainLayout() {
         setSortConfig({ key, direction });
     };
 
-    // --- 3. Tri des tracks ---
     const sortedTracks = useMemo(() => {
-    if (!sortConfig.key) return tracks;
-    return [...tracks].sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
+        if (!sortConfig.key) return tracks;
+        return [...tracks].sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
 
-        // Cas spécial pour la date (comparaison numérique)
-        if (sortConfig.key === 'date') {
-        const aDate = aValue || 0;
-        const bDate = bValue || 0;
-        return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
-        }
+            if (sortConfig.key === 'date') {
+                const aDate = aValue || 0;
+                const bDate = bValue || 0;
+                return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
+            }
 
-        // Cas général (chaînes)
-        const strA = (aValue || '').toString().toLowerCase();
-        const strB = (bValue || '').toString().toLowerCase();
-        if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+            const strA = (aValue || '').toString().toLowerCase();
+            const strB = (bValue || '').toString().toLowerCase();
+            if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
     }, [tracks, sortConfig]);
 
-    // --- 4. Filtrage des tracks (optionnel, si tu veux garder les filtres) ---
+    // --- Filtrage ---
+    // La recherche texte est différée (useDeferredValue) : la frappe met à jour
+    // `filters.search`/l'input instantanément, mais le filtrage des ~3700 tracks
+    // (coûteux à chaque caractère) tourne sur une valeur "en retard d'une frame",
+    // React le priorise en dessous de l'input pour que la saisie reste fluide.
+    const deferredSearch = useDeferredValue(filters.search);
+
     const filteredTracks = useMemo(() => {
+        const searchLower = deferredSearch.trim().toLowerCase();
         return sortedTracks.filter(track => {
-            // Filtre par statut
             if (filters.status !== 'all' && track.status !== filters.status) return false;
-            // Filtre par recherche
-            if (filters.search) {
-                const searchLower = filters.search.trim().toLowerCase();
+            if (filters.alertsOnly && !track.has_alert) return false;
+            if (searchLower) {
                 const searchableText = [
                     track.source_title,
                     track.source_artist,
@@ -103,16 +136,15 @@ function MainLayout() {
                 ].filter(Boolean).join(' ').toLowerCase();
                 if (!searchableText.includes(searchLower)) return false;
             }
-            // Filtre par tags
             if (filters.tags.length > 0) {
                 const trackTags = [...(track.styles || []), ...(track.genres || [])];
                 if (!filters.tags.some(tag => trackTags.includes(tag))) return false;
             }
             return true;
         });
-    }, [sortedTracks, filters]);
+    }, [sortedTracks, filters.status, filters.alertsOnly, filters.tags, deferredSearch]);
 
-    // --- 5. Gestion de la modale ---
+    // --- Modale ---
     const handleSelectTrack = useCallback((track) => {
         setSelectedTrack(track);
     }, []);
@@ -121,102 +153,25 @@ function MainLayout() {
         setSelectedTrack(null);
     }, []);
 
-    // --- 6. Mise à jour Discogs (optionnel) ---
-    const handleUpdateDiscogs = useCallback(async (track, discogsUrl) => {
-        try {
-            // TODO: Appeler l'API pour mettre à jour
-            addNotification('success', `Track ${track.source_title} mise à jour`);
-            setSelectedTrack(null);
-            // Mise à jour locale (à adapter)
-            setTracks(prev => prev.map(t =>
-                t.source === track.source && t.source_track_id === track.source_track_id
-                    ? { ...t, discogs_url: discogsUrl, status: 'matched' }
-                    : t
-            ));
-        } catch (error) {
-            addNotification('error', `Erreur: ${error.message}`);
-        }
-    }, [addNotification]);
+    // Callback partagé par la modale (match Discogs OU tag manuel) : la track renvoyée
+    // par l'API fait foi, on met juste à jour l'état local sans tout recharger.
+    const handleTrackUpdated = useCallback((updatedTrack) => {
+        if (!updatedTrack) return;
+        setTracks(prev => prev.map(t =>
+            t.source === updatedTrack.source && t.source_track_id === updatedTrack.source_track_id
+                ? { ...t, ...updatedTrack, date: updatedTrack.created_at ? new Date(updatedTrack.created_at).getTime() : t.date }
+                : t
+        ));
+    }, []);
 
-    const handleStartProcessing = async (service) => {
+    const handleStartProcessing = async (service, { retryFailed = false } = {}) => {
         startProcessing(service);
-        addNotification('info', `Démarrage du processing pour ${service || 'tous les services'}`);
-
         try {
-            // 1. D'abord synchroniser les playlists (si service spécifique)
-            if (service && service !== 'all') {
-                const syncResponse = await fetch(`/process/sync/${service}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const syncData = await syncResponse.json();
-                addNotification('success', `${syncData.tracks_synced} tracks synchronisées depuis ${service}`);
-            } else if (service === 'all') {
-                // Synchroniser les deux services
-                const syncResponse = await fetch('http://127.0.0.1:5000/api/process', { method: 'POST' });
-                const syncData = await syncResponse.json();
-                addNotification('success', `${syncData.total} tracks synchronisées au total`);
-            }
-
-            // 2. Lancer le processing
-            const processResponse = await fetch(`/process/${service || 'all'}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ retry_failed: false })
-            });
-
-            if (!processResponse.ok) {
-                throw new Error('Erreur lors du démarrage du processing');
-            }
-
-            // 3. Suivre la progression avec polling
-            const interval = setInterval(async () => {
-                const statusResponse = await fetch('/process/status');
-                const statusData = await statusResponse.json();
-
-                if (!statusData.is_processing) {
-                    clearInterval(interval);
-                    addNotification('success', 'Processing terminé!');
-                    // Recharger les tracks
-                    fetchTracks();
-                    return;
-                }
-
-                // Mettre à jour la progression dans le contexte
-                // (À implémenter dans ton contexte AppContext)
-                const total = Object.values(statusData.services).reduce(
-                    (sum, s) => sum + s.total, 0
-                );
-                const processed = Object.values(statusData.services).reduce(
-                    (sum, s) => sum + s.processed, 0
-                );
-                const progress = total > 0 ? (processed / total) * 100 : 0;
-
-                updateProcessingProgress(progress, {
-                    total,
-                    processed,
-                    matched: Object.values(statusData.services).reduce(
-                        (sum, s) => sum + s.matched, 0
-                    ),
-                    failed: Object.values(statusData.services).reduce(
-                        (sum, s) => sum + s.failed, 0
-                    )
-                });
-
-            }, 1000);
-
+            await apiStartProcessing(service, { retryFailed });
+            addNotification('info', `Démarrage du processing pour ${service === 'all' ? 'tous les services' : service}`);
         } catch (error) {
             addNotification('error', `Erreur: ${error.message}`);
         }
-    };
-    // --- 8. Constante pour le tri (à ajouter) ---
-    const SORTABLE_COLUMNS = {
-    status: 'status',
-    source: 'source',
-    title: 'source_title',
-    album: 'discogs_album',
-    tags: 'styles',
-    date: 'date', // ← Utilise la nouvelle propriété
     };
 
     return (
@@ -225,79 +180,80 @@ function MainLayout() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
                         <h1 className="text-xl font-bold text-gray-900">Music Processing</h1>
-                        <div className="flex items-center space-x-4">
-                            {/* Boutons de processing */}
-                            <div className="flex space-x-2">
+                        <nav className="flex space-x-1">
+                            {TABS.map(tab => (
                                 <button
-                                    onClick={() => handleStartProcessing('all')}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key)}
+                                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                        activeTab === tab.key
+                                            ? 'bg-blue-50 text-blue-700'
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
                                 >
-                                    Lancer le processing (All)
+                                    {tab.label}
                                 </button>
-                                <button
-                                    onClick={() => handleStartProcessing('spotify')}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Spotify
-                                </button>
-                                <button
-                                    onClick={() => handleStartProcessing('ytmusic')}
-                                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    YouTube Music
-                                </button>
-                            </div>
-                        </div>
+                            ))}
+                        </nav>
                     </div>
                 </div>
             </header>
-            {/* Contenu principal */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
                 {activeTab === 'tracks' && (
                     <>
-                        {/* Barre de filtres (optionnelle) */}
+                        <ProcessingLauncher onLaunch={handleStartProcessing} />
+
                         <FilterBar
                             filters={filters}
                             setFilters={setFilters}
                             allTags={allTags}
                         />
 
-                        {/* Affichage des filtres actifs */}
-                        {(filters.search || filters.status !== 'all' || filters.tags.length > 0) && (
-                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800 mb-4">
+                        {(filters.search || filters.status !== 'all' || filters.tags.length > 0 || filters.alertsOnly) && (
+                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
                                 <span className="font-medium">Filtres actifs:</span>
                                 {filters.search && <span className="ml-2">Recherche: "{filters.search}"</span>}
                                 {filters.status !== 'all' && <span className="ml-2">Statut: {filters.status}</span>}
                                 {filters.tags.length > 0 && <span className="ml-2">Tags: {filters.tags.join(', ')}</span>}
+                                {filters.alertsOnly && <span className="ml-2">⚠️ Alertes uniquement</span>}
                                 {filteredTracks.length < tracks.length && (
                                     <span className="ml-2">({filteredTracks.length} / {tracks.length} tracks)</span>
                                 )}
                             </div>
                         )}
 
-                        {/* Tableau des tracks */}
-                        <TracksTable
-                            tracks={filteredTracks} // ← Tracks filtrés et triés
-                            onSelectTrack={handleSelectTrack} // ← Gestion de la sélection
-                            sortConfig={sortConfig} // ← Configuration du tri
-                            onSort={requestSort} // ← Fonction de tri
-                        />
+                        {loading ? (
+                            <div className="flex justify-center items-center h-64">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                            </div>
+                        ) : error ? (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                                Erreur: {error}
+                            </div>
+                        ) : (
+                            <TracksTable
+                                tracks={filteredTracks}
+                                onSelectTrack={handleSelectTrack}
+                                sortConfig={sortConfig}
+                                onSort={requestSort}
+                            />
+                        )}
 
-                        {/* Modale de détails */}
                         {selectedTrack && (
                             <TrackDetailsModal
                                 track={selectedTrack}
                                 onClose={handleCloseModal}
-                                onUpdateDiscogs={handleUpdateDiscogs}
+                                onUpdateDiscogs={handleTrackUpdated}
                             />
                         )}
                     </>
                 )}
-                {activeTab === 'stats' && <div>Statistiques à implémenter</div>}
-                {activeTab === 'settings' && <div>Paramètres à implémenter</div>}
+                {activeTab === 'playlists' && <PlaylistsView />}
+                {activeTab === 'settings' && <SettingsView />}
+                {activeTab === 'blindtest' && <BlindTestView />}
             </main>
 
-            {/* Barre de statut */}
             <ProcessingStatus />
         </div>
     );

@@ -58,6 +58,7 @@ function FilterBar({ filters, setFilters, allTags }) {
           >
             <option value="all">Tous</option>
             <option value="matched">Matchés</option>
+            <option value="manual">Tag manuel</option>
             <option value="failed">Échoués</option>
           </select>
         </div>
@@ -139,14 +140,28 @@ function FilterBar({ filters, setFilters, allTags }) {
           )}
         </div>
 
+        {/* Alertes uniquement */}
+        <div className="flex-shrink-0 flex items-end">
+          <label className="flex items-center gap-2 text-sm text-gray-700 pb-2">
+            <input
+              type="checkbox"
+              checked={filters.alertsOnly}
+              onChange={(e) => setFilters({ ...filters, alertsOnly: e.target.checked })}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            ⚠️ Alertes uniquement
+          </label>
+        </div>
+
         {/* Bouton pour effacer tous les filtres */}
-        {(filters.search || filters.status !== 'all' || filters.tags.length > 0) && (
+        {(filters.search || filters.status !== 'all' || filters.tags.length > 0 || filters.alertsOnly) && (
           <div className="flex-shrink-0 flex items-end">
             <button
               onClick={() => setFilters({
                 search: '',
                 status: 'all',
-                tags: []
+                tags: [],
+                alertsOnly: false
               })}
               className="text-gray-600 hover:text-gray-800 text-sm underline"
             >

@@ -1,13 +1,19 @@
 import { useApp } from '../context/AppContext'
 import ProgressBar from './ProgressBar'
 
+const RESULT_META = {
+  matched: { icon: '✓', className: 'text-green-600' },
+  failed: { icon: '✗', className: 'text-red-600' },
+}
+
 function ProcessingStatus() {
-  const { 
-    isProcessing, 
-    processingProgress, 
+  const {
+    isProcessing,
+    processingProgress,
     processingService,
     processingStats,
-    stopProcessing 
+    processingLog,
+    stopProcessing
   } = useApp()
 
   if (!isProcessing) return null
@@ -26,15 +32,28 @@ function ProcessingStatus() {
             onClick={stopProcessing}
             className="text-sm text-gray-600 hover:text-gray-800 underline"
           >
-            Annuler
+            Masquer
           </button>
         </div>
-        
-        {/* Barre de progression */}
-        <ProgressBar 
-          progress={processingProgress} 
+
+        <ProgressBar
+          progress={processingProgress}
           stats={processingStats}
         />
+
+        {processingLog.length > 0 && (
+          <div className="mt-3 max-h-24 overflow-y-auto text-xs text-gray-600 space-y-0.5">
+            {processingLog.map((entry, i) => {
+              const meta = RESULT_META[entry.result] || { icon: '…', className: 'text-gray-400' }
+              return (
+                <div key={`${entry.at}-${i}`} className="flex items-center gap-2">
+                  <span className={meta.className}>{meta.icon}</span>
+                  <span className="truncate">{entry.title} — {entry.artist}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

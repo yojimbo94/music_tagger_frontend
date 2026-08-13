@@ -1,5 +1,6 @@
-import { memo } from 'react';
-import TrackRow from './TrackRow';
+import { memo, useMemo } from 'react';
+import { List } from 'react-window';
+import TrackRow, { ROW_HEIGHT, ROW_GRID_CLASS } from './TrackRow';
 
 const SORTABLE_COLUMNS = {
   status: 'status',
@@ -7,7 +8,7 @@ const SORTABLE_COLUMNS = {
   title: 'source_title',
   album: 'discogs_album',
   tags: 'styles',
-  date: 'date', // ← Utilise la nouvelle propriété
+  date: 'date',
 };
 
 const TracksTable = memo(function TracksTable({ tracks, onSelectTrack, sortConfig, onSort }) {
@@ -17,6 +18,10 @@ const TracksTable = memo(function TracksTable({ tracks, onSelectTrack, sortConfi
   };
 
   const sortableHeaderClass = 'cursor-pointer select-none hover:text-gray-700 transition-colors';
+
+  // Référence stable tant que `tracks`/`onSelectTrack` ne changent pas vraiment,
+  // pour éviter de refaire un cycle de mesure react-window à chaque frappe.
+  const rowProps = useMemo(() => ({ tracks, onSelectTrack }), [tracks, onSelectTrack]);
 
   const headerButton = (label, columnKey) => (
     <button
@@ -45,51 +50,36 @@ const TracksTable = memo(function TracksTable({ tracks, onSelectTrack, sortConfi
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12 hidden md:table-cell">
-                {headerButton('Statut', SORTABLE_COLUMNS.status)}
-              </th>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 hidden lg:table-cell">
-                {headerButton('Source', SORTABLE_COLUMNS.source)}
-              </th>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                Pochette
-              </th>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {headerButton('Titre / Artiste', SORTABLE_COLUMNS.title)}
-              </th>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                {headerButton('Album', SORTABLE_COLUMNS.album)}
-              </th>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
-                {headerButton('Tags', SORTABLE_COLUMNS.tags)}
-              </th>
-              <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                {headerButton('Date', SORTABLE_COLUMNS.date)}
-              </th>
-            </tr>
-          </thead>
+        <div className="min-w-[900px]">
+          {/* Entête, calé sur la même grille que les lignes virtualisées */}
+          <div className={`${ROW_GRID_CLASS} py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+            <div />
+            <div className="hidden md:block">{headerButton('Statut', SORTABLE_COLUMNS.status)}</div>
+            <div className="hidden lg:block">{headerButton('Source', SORTABLE_COLUMNS.source)}</div>
+            <div>Pochette</div>
+            <div>{headerButton('Titre / Artiste', SORTABLE_COLUMNS.title)}</div>
+            <div className="hidden lg:block">{headerButton('Album', SORTABLE_COLUMNS.album)}</div>
+            <div className="hidden xl:block">{headerButton('Tags', SORTABLE_COLUMNS.tags)}</div>
+            <div className="hidden md:block">{headerButton('Date', SORTABLE_COLUMNS.date)}</div>
+          </div>
 
-          <tbody className="bg-white divide-y divide-gray-200">
-            {tracks.length > 0 ? (
-              tracks.map(track => (
-                <TrackRow
-                  key={`${track.source}_${track.source_track_id}`}
-                  track={track}
-                  onClick={onSelectTrack}
-                />
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
-                  Aucune track trouvée
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          {/* Corps virtualisé : ne rend que les lignes visibles, indispensable au-delà
+              de quelques centaines de tracks (bibliothèque actuelle : ~3700 titres). */}
+          {tracks.length > 0 ? (
+            <List
+              key={tracks.length}
+              rowComponent={TrackRow}
+              rowCount={tracks.length}
+              rowHeight={ROW_HEIGHT}
+              rowProps={rowProps}
+              defaultHeight={Math.min(tracks.length * ROW_HEIGHT, 640)}
+            />
+          ) : (
+            <div className="px-6 py-4 text-center text-gray-500">
+              Aucune track trouvée
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

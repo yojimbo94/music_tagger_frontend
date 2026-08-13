@@ -2,9 +2,10 @@ import { createContext, useContext, useState, useCallback } from 'react'
 
 const AppContext = createContext()
 
+const MAX_LOG_ENTRIES = 25
+
 export function AppProvider({ children }) {
   const [isProcessing, setIsProcessing] = useState(false)
-  const [processingProgress, setProcessingProgress] = useState(0)
   const [processingService, setProcessingService] = useState(null)
   const [processingStats, setProcessingStats] = useState({
     total: 0,
@@ -12,41 +13,59 @@ export function AppProvider({ children }) {
     matched: 0,
     failed: 0
   })
+  const [processingLog, setProcessingLog] = useState([])
   const [notifications, setNotifications] = useState([])
   const [isLoading, setIsLoading] = useState(false)
 
   // Ajouter une notification (toast)
   const addNotification = useCallback((type, message, duration = 5000) => {
-    const id = Date.now()
+    const id = `${Date.now()}-${Math.random()}`
     setNotifications(prev => [...prev, { id, type, message }])
-    
-    // Supprimer automatiquement après duration
+
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id))
     }, duration)
   }, [])
 
-  // Mettre à jour la progression du processing
-  const updateProcessingProgress = useCallback((progress, stats = null) => {
-    setProcessingProgress(progress)
-    if (stats) {
-      setProcessingStats(stats)
-    }
-  }, [])
-
-  // Démarrer le processing
+  // Démarrer le processing (déclenché par l'appel API ; l'évènement socket
+  // 'processing:started' confirmera et alimentera les stats réelles)
   const startProcessing = useCallback((service) => {
     setIsProcessing(true)
-    setProcessingProgress(0)
     setProcessingService(service)
     setProcessingStats({ total: 0, processed: 0, matched: 0, failed: 0 })
+    setProcessingLog([])
   }, [])
 
-  // Arrêter le processing
   const stopProcessing = useCallback(() => {
     setIsProcessing(false)
     setProcessingService(null)
   }, [])
+
+  // Alimenté par useProcessingSocket
+  const handleProcessingStarted = useCallback((payload) => {
+    setIsProcessing(true)
+    setProcessingService(payload.service)
+    setProcessingStats(prev => ({ ...prev, total: payload.total ?? prev.total }))
+  }, [])
+
+  const handleProcessingProgress = useCallback((payload) => {
+    const { last_track, service, ...stats } = payload
+    setIsProcessing(true)
+    setProcessingService(service)
+    setProcessingStats(stats)
+    if (last_track) {
+      setProcessingLog(prev => [{ ...last_track, at: Date.now() }, ...prev].slice(0, MAX_LOG_ENTRIES))
+    }
+  }, [])
+
+  const handleProcessingDone = useCallback(({ total, processed, matched, failed }) => {
+    setProcessingStats({ total, processed, matched, failed })
+    setIsProcessing(false)
+  }, [])
+
+  const processingProgress = processingStats.total > 0
+    ? (processingStats.processed / processingStats.total) * 100
+    : 0
 
   return (
     <AppContext.Provider value={{
@@ -54,9 +73,12 @@ export function AppProvider({ children }) {
       processingProgress,
       processingService,
       processingStats,
+      processingLog,
       startProcessing,
       stopProcessing,
-      updateProcessingProgress,
+      handleProcessingStarted,
+      handleProcessingProgress,
+      handleProcessingDone,
       notifications,
       addNotification,
       isLoading,

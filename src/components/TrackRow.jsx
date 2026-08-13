@@ -8,25 +8,30 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', {
 })
 
 const STATUS_META = {
-  matched: { className: 'text-green-600', icon: '✓' },
-  failed: { className: 'text-red-600', icon: '✗' },
-  default: { className: 'text-amber-600', icon: '⏳' }
+  matched: { className: 'text-green-600', icon: '✓', label: 'Matché' },
+  manual: { className: 'text-blue-600', icon: '✎', label: 'Tag manuel' },
+  failed: { className: 'text-red-600', icon: '✗', label: 'Échec' },
+  default: { className: 'text-amber-600', icon: '⏳', label: 'En attente' }
 }
 
 const PLACEHOLDER_THUMBNAIL = 'https://via.placeholder.com/40x40?text=♫'
 
-function TrackRow({ track, onClick }) {
-  const {
-    title,
-    artist,
-    album,
-    statusClass,
-    statusIcon,
-    allTags,
-    formattedDate,
-    thumbnailUrl
-  } = useMemo(() => {
-    const isMatched = track.status === 'matched'
+export const ROW_HEIGHT = 56
+
+// Grid partagé entre l'entête (TracksTable) et chaque ligne, pour rester alignés.
+export const ROW_GRID_CLASS =
+  'grid grid-cols-[28px_64px_84px_56px_minmax(160px,2fr)_minmax(140px,1.5fr)_minmax(160px,1.5fr)_88px] items-center gap-2 px-3'
+
+function TrackRow({ index, style, tracks, onSelectTrack }) {
+  // Le virtualiseur peut redemander un rendu pour `index` un tick avant que le
+  // tableau `tracks` (recalculé par le filtrage/tri) n'ait rétréci en cohérence
+  // (ex: en tapant vite dans la recherche) — sans ce garde-fou, l'accès à un
+  // track undefined faisait planter tout l'arbre React (écran blanc).
+  const track = tracks[index]
+
+  const derived = useMemo(() => {
+    if (!track) return null
+    const isMatched = track.status === 'matched' || track.status === 'manual'
     const title = track.source_title
     const artist = isMatched ? (track.discogs_artist || track.source_artist) : track.source_artist
     const meta = STATUS_META[track.status] || STATUS_META.default
@@ -36,90 +41,83 @@ function TrackRow({ track, onClick }) {
       title,
       artist,
       album: track.discogs_album,
-      statusClass: meta.className,
-      statusIcon: meta.icon,
+      statusMeta: meta,
       allTags,
       formattedDate: track.created_at ? DATE_FORMATTER.format(new Date(track.created_at)) : '—',
-      thumbnailUrl: track.discord_image || PLACEHOLDER_THUMBNAIL
+      thumbnailUrl: track.discogs_image || PLACEHOLDER_THUMBNAIL
     }
   }, [track])
 
+  if (!track || !derived) {
+    return <div style={style} className={ROW_GRID_CLASS} />
+  }
+
+  const { title, artist, album, statusMeta, allTags, formattedDate, thumbnailUrl } = derived
+
   return (
-    <tr
-      onClick={() => onClick(track)}
-      className="cursor-pointer hover:bg-gray-50 transition-colors h-12"
+    <div
+      style={style}
+      onClick={() => onSelectTrack(track)}
+      className={`${ROW_GRID_CLASS} cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100`}
     >
+      {/* Alerte */}
+      <div className="flex justify-center" title={track.has_alert ? 'Style hors de la liste attendue' : undefined}>
+        {track.has_alert && <span className="text-amber-500 text-sm">⚠️</span>}
+      </div>
+
       {/* Statut */}
-      <td className="px-2 py-1 whitespace-nowrap align-middle hidden md:table-cell">
-        <span className={`font-medium ${statusClass} text-xs`}>{statusIcon}</span>
-      </td>
+      <div className="hidden md:block" title={statusMeta.label}>
+        <span className={`font-medium ${statusMeta.className} text-xs`}>{statusMeta.icon}</span>
+      </div>
 
       {/* Source */}
-      <td className="px-2 py-1 whitespace-nowrap align-middle hidden lg:table-cell">
+      <div className="hidden lg:block">
         <span className="px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-800 text-xs">
           {track.source}
         </span>
-      </td>
+      </div>
 
       {/* Pochette */}
-      <td className="px-2 py-1 whitespace-nowrap align-middle w-12">
-        <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-200 flex-shrink-0">
-          <img
-            src={thumbnailUrl}
-            alt={title}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-        </div>
-      </td>
+      <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-200 flex-shrink-0">
+        <img
+          src={thumbnailUrl}
+          alt={title}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
 
       {/* Titre / Artiste */}
-      <td className="px-2 py-1 align-middle">
-        <div className="min-w-0">
-          <div
-            className="font-medium text-gray-900 text-sm truncate max-w-[200px] md:max-w-[300px]"
-            title={title}
-          >
-            {title}
-          </div>
-          <div
-            className="text-xs text-gray-500 truncate max-w-[200px] md:max-w-[300px]"
-            title={artist}
-          >
-            {artist}
-          </div>
+      <div className="min-w-0">
+        <div className="font-medium text-gray-900 text-sm truncate" title={title}>
+          {title}
         </div>
-      </td>
+        <div className="text-xs text-gray-500 truncate" title={artist}>
+          {artist}
+        </div>
+      </div>
 
       {/* Album */}
-      <td className="px-2 py-1 whitespace-nowrap align-middle hidden lg:table-cell">
-        {track.status === 'matched' ? (
-          <div className="truncate max-w-[150px] text-xs text-gray-700" title={album}>
-            {album}
-          </div>
-        ) : (
-          <span className="text-gray-400 text-xs">—</span>
+      <div className="hidden lg:block truncate text-xs text-gray-700" title={album}>
+        {(track.status === 'matched' || track.status === 'manual') && album ? album : (
+          <span className="text-gray-400">—</span>
         )}
-      </td>
+      </div>
 
       {/* Tags */}
-      <td className="px-2 py-1 align-middle hidden xl:table-cell">
-        <div className="flex flex-wrap gap-1">
-          {allTags.slice(0, 3).map((tag, index) => (
-            <Tag key={`${tag}-${index}`} tag={tag} size="xs" />
-          ))}
-          {allTags.length > 3 && (
-            <Tag tag={`+${allTags.length - 3}`} isCount={true} size="xs" />
-          )}
-        </div>
-      </td>
+      <div className="hidden xl:flex flex-wrap gap-1 overflow-hidden">
+        {allTags.slice(0, 2).map((tag, i) => (
+          <Tag key={`${tag}-${i}`} tag={tag} size="xs" />
+        ))}
+        {allTags.length > 2 && <Tag tag={`+${allTags.length - 2}`} isCount size="xs" />}
+      </div>
 
       {/* Date */}
-      <td className="px-2 py-1 whitespace-nowrap text-xs text-gray-500 align-middle hidden md:table-cell">
+      <div className="hidden md:block text-xs text-gray-500">
         {formattedDate}
-      </td>
-    </tr>
+      </div>
+    </div>
   )
 }
 

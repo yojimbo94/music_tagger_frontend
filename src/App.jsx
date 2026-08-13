@@ -3,7 +3,6 @@ import { AppProvider } from './context/AppContext'
 import Login from './components/Login'
 import MainLayout from './components/MainLayout'
 import ToastNotifications from './components/ToastNotifications'
-import LoadingOverlay from './components/LoadingOverlay'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(true)
@@ -21,7 +20,6 @@ function App() {
     <AppProvider>
       <MainLayout />
       <ToastNotifications />
-      {/* <LoadingOverlay /> */}
     </AppProvider>
   )
 }
