@@ -1,10 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
-import { API_BASE } from '../api/client'
+import { API_BASE, getAccessToken } from '../api/client'
 
 /**
  * Connexion Socket.IO au serveur de processing. Remplace le polling HTTP par un
  * vrai push temps réel des évènements 'processing:started/progress/done'.
+ *
+ * Ce hook n'est monté que dans MainLayout, donc uniquement une fois authentifié :
+ * le token courant est envoyé à la connexion et vérifié côté serveur
+ * (cf. src/server/socket_events.py). Un token expiré ferme juste le flux temps
+ * réel (l'API REST, elle, se rafraîchit toute seule) ; recharger la page suffit.
  */
 export function useProcessingSocket({ onStarted, onProgress, onDone, onError } = {}) {
   const handlersRef = useRef({ onStarted, onProgress, onDone, onError })
@@ -18,7 +23,10 @@ export function useProcessingSocket({ onStarted, onProgress, onDone, onError } =
     // qui ne sait pas faire l'upgrade WebSocket avec le serveur de dev Werkzeug
     // (provoque un crash "write() before start_response"). On reste en long-polling,
     // ce qui suffit largement pour de la progression de processing.
-    const socket = io(API_BASE, { transports: ['polling'] })
+    const socket = io(API_BASE, {
+      transports: ['polling'],
+      auth: { token: getAccessToken() }
+    })
 
     socket.on('processing:started', (payload) => handlersRef.current.onStarted?.(payload))
     socket.on('processing:progress', (payload) => handlersRef.current.onProgress?.(payload))

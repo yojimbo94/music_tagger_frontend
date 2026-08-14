@@ -14,3 +14,12 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## Auth
+
+L'app se connecte à l'API `music_tagger` via `VITE_API_URL` (défaut :
+`http://127.0.0.1:5000`). Toutes les requêtes et la connexion Socket.IO
+envoient le JWT obtenu à `/auth/login` (compte admin unique, configuré côté
+serveur — voir `AUTH.md` dans `music_tagger`). Le token d'accès est rafraîchi
+automatiquement en arrière-plan ; une session expirée (refresh token invalide)
+ramène sur l'écran de connexion.

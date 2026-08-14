@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { useProcessingSocket } from '../hooks/useProcessingSocket';
 import { getTracks, startProcessing as apiStartProcessing } from '../api/client';
 import TracksTable from './TracksTable';
@@ -36,6 +37,8 @@ function MainLayout() {
         handleProcessingProgress,
         handleProcessingDone
     } = useApp();
+
+    const { logout } = useAuth();
 
     // --- Suivi temps réel du processing (Socket.IO) ---
     useProcessingSocket({
@@ -201,6 +204,13 @@ function MainLayout() {
                                 </button>
                             ))}
                         </nav>
+                        <button
+                            onClick={logout}
+                            className="ml-4 px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+                            title="Se déconnecter"
+                        >
+                            Déconnexion
+                        </button>
                     </div>
                 </div>
             </header>

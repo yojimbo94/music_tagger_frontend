@@ -1,14 +1,23 @@
 import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 
-function Login({ onLogin }) {
+function Login() {
+  const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // Authentification factice
-    if (username && password) {
-      onLogin()
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      await login(username, password)
+    } catch (err) {
+      setError(err.message || 'Échec de la connexion')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -27,6 +36,7 @@ function Login({ onLogin }) {
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Entrez votre utilisateur"
+              autoComplete="username"
               required
             />
           </div>
@@ -40,19 +50,25 @@ function Login({ onLogin }) {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Entrez votre mot de passe"
+              autoComplete="current-password"
               required
             />
           </div>
+
+          {error && (
+            <p className="mb-4 text-sm text-red-600 text-center" role="alert">
+              {error}
+            </p>
+          )}
+
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={isSubmitting}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Se connecter
+            {isSubmitting ? 'Connexion…' : 'Se connecter'}
           </button>
         </form>
-        <p className="mt-4 text-sm text-gray-500 text-center">
-          Authentification factice - À remplacer par un vrai système
-        </p>
       </div>
     </div>
   )

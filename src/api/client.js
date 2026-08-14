@@ -3,19 +3,109 @@
 // Vite au lieu du port Flask (bug historique dans MainLayout/TrackDetailsModal).
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
 
-async function request(path, options = {}) {
+const ACCESS_TOKEN_KEY = 'tagger_access_token'
+const REFRESH_TOKEN_KEY = 'tagger_refresh_token'
+
+export function getAccessToken() {
+  return localStorage.getItem(ACCESS_TOKEN_KEY)
+}
+
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+export function isAuthenticated() {
+  return !!getRefreshToken()
+}
+
+function setTokens({ access_token, refresh_token } = {}) {
+  if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token)
+  if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
+}
+
+function clearTokens() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+// Callback branché par AuthContext : appelé quand la session ne peut plus être
+// maintenue (refresh token absent/expiré) pour ramener l'appli sur l'écran de login.
+let onAuthExpired = () => {}
+export function setOnAuthExpired(handler) {
+  onAuthExpired = handler
+}
+
+async function rawRequest(path, options) {
+  const token = getAccessToken()
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    },
     ...options
   })
-
   const isJson = response.headers.get('content-type')?.includes('application/json')
   const data = isJson ? await response.json() : null
+  return { response, data }
+}
+
+// Un seul refresh en vol à la fois même si plusieurs requêtes 401 en parallèle.
+let refreshPromise = null
+function refreshAccessToken() {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return Promise.resolve(false)
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${refreshToken}` }
+    })
+      .then(async (res) => {
+        if (!res.ok) return false
+        const data = await res.json()
+        setTokens(data)
+        return true
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+  return refreshPromise
+}
+
+async function request(path, options = {}, { isRetry = false } = {}) {
+  const { response, data } = await rawRequest(path, options)
+
+  if (response.status === 401 && !isRetry && path !== '/auth/login') {
+    const refreshed = await refreshAccessToken()
+    if (refreshed) {
+      return request(path, options, { isRetry: true })
+    }
+    clearTokens()
+    onAuthExpired()
+    throw new Error('Session expirée, merci de vous reconnecter')
+  }
 
   if (!response.ok) {
     throw new Error(data?.error || `HTTP ${response.status}`)
   }
   return data
+}
+
+// --- Auth ---
+export async function login(username, password) {
+  const data = await request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password })
+  })
+  setTokens(data)
+  return data
+}
+
+export function logout() {
+  clearTokens()
 }
 
 // --- Tracks ---
