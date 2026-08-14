@@ -233,13 +233,19 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
                     </button>
                 </div>
 
-                {/* Main Content */}
-                <div className="relative grid flex-1 overflow-hidden lg:grid-cols-[360px_1fr]">
+                {/* Main Content — sur mobile, aside + main scrollent ensemble comme une
+                    seule colonne (sinon, avec le scroll cantonné à `main` et l'aside en
+                    `overflow-hidden`, la pochette en aspect-square pleine largeur pouvait
+                    à elle seule dépasser la hauteur du modal, rendant tout illisible et
+                    non scrollable). À partir de lg, on repasse au layout 2 colonnes avec
+                    scroll indépendant sur `main` comme avant. */}
+                <div className="relative grid flex-1 overflow-y-auto lg:grid-cols-[360px_1fr] lg:overflow-hidden">
                     {/* Sidebar */}
                     <aside className="border-b border-gray-200 bg-gray-50 p-5 lg:border-b-0 lg:border-r lg:border-gray-200">
                         <div className="space-y-4">
-                            {/* Album Cover */}
-                            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                            {/* Album Cover — largeur plafonnée sur mobile : en aspect-square
+                                pleine largeur, elle occupait tout l'écran sur un téléphone étroit. */}
+                            <div className="mx-auto w-full max-w-[240px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm sm:max-w-xs lg:max-w-none">
                                 <div className="aspect-square w-full bg-gray-100">
                                     {track.discogs_image ? (
                                         <img
@@ -307,7 +313,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
                     </aside>
 
                     {/* Main Content Area */}
-                    <main className="min-w-0 overflow-y-auto p-5">
+                    <main className="min-w-0 p-5 lg:overflow-y-auto">
                         <div className="grid gap-4 sm:grid-cols-2">
                             {trackInfo.filter(Boolean).map((item) => {
                                 if (item.type === 'separator') {
