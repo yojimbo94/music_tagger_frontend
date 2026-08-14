@@ -164,6 +164,12 @@ function MainLayout() {
         ));
     }, []);
 
+    const handleTrackDeleted = useCallback((deletedTrack) => {
+        setTracks(prev => prev.filter(t =>
+            !(t.source === deletedTrack.source && t.source_track_id === deletedTrack.source_track_id)
+        ));
+    }, []);
+
     const handleStartProcessing = async (service, { retryFailed = false } = {}) => {
         startProcessing(service);
         try {
@@ -245,6 +251,7 @@ function MainLayout() {
                                 track={selectedTrack}
                                 onClose={handleCloseModal}
                                 onUpdateDiscogs={handleTrackUpdated}
+                                onDeleted={handleTrackDeleted}
                             />
                         )}
                     </>

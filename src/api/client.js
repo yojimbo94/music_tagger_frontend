@@ -94,7 +94,14 @@ export function stopProcessing() {
   return request('/process/stop', { method: 'POST' })
 }
 
-// --- Blind test (squelette) ---
+// --- Blind test ---
 export function getBlindTestConfig() {
   return request('/api/blindtest/config')
+}
+
+export function startBlindTestRound(config) {
+  return request('/api/blindtest/round', {
+    method: 'POST',
+    body: JSON.stringify(config)
+  })
 }

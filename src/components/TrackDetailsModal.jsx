@@ -1,74 +1,34 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
-import { updateTrackDiscogs, setManualTags, getStyles, getGenres } from '../api/client'
+import { updateTrackDiscogs, setManualTags, getStyles, getGenres, deleteTrack } from '../api/client'
+import { resolvePlaybackId } from '../utils/media'
 import Tag from './Tag'
 import TagPicker from './TagPicker'
 import {
     X,
     ChevronRight,
+    Trash2,
 } from 'lucide-react'
 
-function extractYouTubeVideoId(value) {
-    if (!value) return null
-    if (/^[a-zA-Z0-9_-]{11}$/.test(value)) return value
-    try {
-        const url = new URL(value)
-        const watchId = url.searchParams.get('v')
-        if (watchId) return watchId
-        if (url.hostname.includes('youtu.be')) {
-            return url.pathname.split('/').filter(Boolean)[0] || null
-        }
-        const shortsMatch = url.pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/)
-        if (shortsMatch) return shortsMatch[1]
-        const embedMatch = url.pathname.match(/\/embed\/([a-zA-Z0-9_-]{11})/)
-        if (embedMatch) return embedMatch[1]
-    } catch {
-        const match = value.match(/([a-zA-Z0-9_-]{11})/)
-        return match ? match[1] : null
-    }
-    return null
-}
-
-function extractSpotifyTrackId(value) {
-    if (!value) return null
-    if (/^[a-zA-Z0-9]{22}$/.test(value)) return value
-    try {
-        const url = new URL(value)
-        const trackMatch = url.pathname.match(/\/track\/([a-zA-Z0-9]{22})/)
-        if (trackMatch) return trackMatch[1]
-        const embedMatch = url.pathname.match(/\/embed\/track\/([a-zA-Z0-9]{22})/)
-        if (embedMatch) return embedMatch[1]
-    } catch {
-        const match = value.match(/([a-zA-Z0-9]{22})/)
-        return match ? match[1] : null
-    }
-    return null
-}
-
 function getMediaPlayer(track) {
-    const source = (track.source || '').toLowerCase()
     const rawId = track.source_track_id || track.id_source || ''
-    if (source === 'spotify') {
-        const spotifyId = extractSpotifyTrackId(rawId)
-        if (!spotifyId) return null
+    const resolved = resolvePlaybackId(track.source, rawId)
+    if (!resolved) return null
+
+    if (resolved.type === 'spotify') {
         return {
             type: 'spotify',
-            src: `https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator`,
+            src: `https://open.spotify.com/embed/track/${resolved.id}?utm_source=generator`,
             title: 'Lecteur Spotify',
             height: 152
         }
     }
-    if (source === 'youtube' || source === 'yt' || source === 'ytmusic' || source === 'youtube music') {
-        const youtubeId = extractYouTubeVideoId(rawId)
-        if (!youtubeId) return null
-        return {
-            type: 'youtube',
-            src: `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0`,
-            title: 'Lecteur YouTube',
-            height: 315
-        }
+    return {
+        type: 'youtube',
+        src: `https://www.youtube-nocookie.com/embed/${resolved.id}?rel=0`,
+        title: 'Lecteur YouTube',
+        height: 315
     }
-    return null
 }
 
 function DetailRow({ label, children, className = '' }) {
@@ -86,7 +46,7 @@ const STATUS_LABEL = {
     failed: { text: '✗ Échoué', className: 'text-red-600' },
 }
 
-function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
+function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
     const [discogsUrl, setDiscogsUrl] = useState('')
     const [isSearching, setIsSearching] = useState(false)
     const [searchResults, setSearchResults] = useState([])
@@ -95,6 +55,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
     const [isSavingTags, setIsSavingTags] = useState(false)
     const [knownStyles, setKnownStyles] = useState([])
     const [knownGenres, setKnownGenres] = useState([])
+    const [isDeleting, setIsDeleting] = useState(false)
     const { addNotification } = useApp()
 
     const mediaPlayer = useMemo(() => getMediaPlayer(track), [track])
@@ -172,6 +133,29 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
             setIsSavingTags(false)
         }
     }, [track, manualStyles, manualGenres, onUpdateDiscogs, addNotification, onClose])
+
+    const handleDelete = useCallback(async () => {
+        const confirmed = window.confirm(
+            `Supprimer "${track.source_title}" ? Le titre sera retiré de la base et des playlists ${track.source === 'spotify' ? 'Spotify' : 'YouTube Music'} correspondantes. Cette action est irréversible.`
+        )
+        if (!confirmed) return
+
+        setIsDeleting(true)
+        try {
+            const data = await deleteTrack(track.source, track.source_track_id)
+            if (data?.warning) {
+                addNotification('warning', data.warning)
+            } else {
+                addNotification('success', 'Track supprimée')
+            }
+            onDeleted?.(track)
+            onClose()
+        } catch (error) {
+            addNotification('error', `Erreur lors de la suppression: ${error.message}`)
+        } finally {
+            setIsDeleting(false)
+        }
+    }, [track, onDeleted, onClose, addNotification])
 
     const trackInfo = useMemo(() => {
         const baseRows = [
@@ -451,7 +435,15 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs }) {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+                <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+                    <button
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        {isDeleting ? 'Suppression...' : 'Supprimer la track'}
+                    </button>
                     <button
                         onClick={onClose}
                         className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
