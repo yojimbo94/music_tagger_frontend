@@ -58,8 +58,10 @@ const TracksTable = memo(function TracksTable({ tracks, onSelectTrack, sortConfi
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[900px]">
-          {/* Entête, calé sur la même grille que les lignes virtualisées */}
+        <div className="min-w-full">
+          {/* Entête, calé sur la même grille que les lignes virtualisées.
+              La grille est responsive (cf. ROW_GRID_CLASS) : plus besoin d'un
+              min-width fixe ni de scroll horizontal sur mobile. */}
           <div className={`${ROW_GRID_CLASS} py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider`}>
             <div />
             <div className="hidden md:block">{headerButton('Statut', SORTABLE_COLUMNS.status)}</div>

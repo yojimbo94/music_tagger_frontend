@@ -42,15 +42,15 @@ function ToastNotifications() {
   if (notifications.length === 0) return null
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-50 space-y-2">
       {notifications.map((notification) => (
         <div
           key={notification.id}
           className={`rounded-md p-4 shadow-md border-l-4 ${getToastStyles(notification.type)} flex items-start gap-3`}
         >
           {ToastIcons[notification.type]}
-          <div>
-            <p className="text-sm font-medium">{notification.message}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium break-words">{notification.message}</p>
           </div>
         </div>
       ))}

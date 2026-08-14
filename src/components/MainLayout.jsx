@@ -11,6 +11,7 @@ import FilterBar from './FilterBar';
 import PlaylistsView from './PlaylistsView';
 import SettingsView from './SettingsView';
 import BlindTestView from './BlindTestView';
+import { LogOut } from 'lucide-react';
 
 const TABS = [
     { key: 'tracks', label: 'Tracks' },
@@ -185,33 +186,37 @@ function MainLayout() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <header className="bg-white shadow-sm">
+            <header className="bg-white shadow-sm sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <h1 className="text-xl font-bold text-gray-900">Music Processing</h1>
-                        <nav className="flex space-x-1">
-                            {TABS.map(tab => (
-                                <button
-                                    key={tab.key}
-                                    onClick={() => setActiveTab(tab.key)}
-                                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                        activeTab === tab.key
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : 'text-gray-600 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </nav>
+                    <div className="flex justify-between items-center h-14 sm:h-16">
+                        <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Music Processing</h1>
                         <button
                             onClick={logout}
-                            className="ml-4 px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+                            className="ml-4 shrink-0 grid place-items-center h-10 w-10 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
                             title="Se déconnecter"
                         >
-                            Déconnexion
+                            <LogOut className="h-5 w-5 sm:hidden" />
+                            <span className="hidden sm:inline">Déconnexion</span>
                         </button>
                     </div>
+                    {/* Onglets : sur mobile ça déborde vite (4 onglets + titre + logout sur
+                        une ligne), on les fait défiler horizontalement sur leur propre ligne
+                        plutôt que de les laisser se tasser ou passer à la ligne. */}
+                    <nav className="flex gap-1 overflow-x-auto pb-2 -mx-1 px-1 sm:pb-3">
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                    activeTab === tab.key
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </nav>
                 </div>
             </header>
 

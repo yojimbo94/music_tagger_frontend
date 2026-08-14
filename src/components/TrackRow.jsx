@@ -19,8 +19,15 @@ const PLACEHOLDER_THUMBNAIL = 'https://via.placeholder.com/40x40?text=♫'
 export const ROW_HEIGHT = 56
 
 // Grid partagé entre l'entête (TracksTable) et chaque ligne, pour rester alignés.
+// Les colonnes masquées (`hidden md:block` etc.) sont retirées du flow de la grille,
+// donc le nombre de pistes déclarées ici doit correspondre exactement au nombre de
+// colonnes visibles à chaque breakpoint (sinon les colonnes restantes glissent dans
+// des pistes de mauvaise taille — c'était le cas avant : le titre se retrouvait
+// écrasé dans la piste de 84px prévue pour la colonne "Source" sur mobile).
+// Colonnes visibles par breakpoint : mobile = alerte/pochette/titre ; md = + statut/date ;
+// lg = + source/album ; xl = + tags.
 export const ROW_GRID_CLASS =
-  'grid grid-cols-[28px_64px_84px_56px_minmax(160px,2fr)_minmax(140px,1.5fr)_minmax(160px,1.5fr)_88px] items-center gap-2 px-3'
+  'grid grid-cols-[28px_56px_1fr] md:grid-cols-[28px_64px_56px_1fr_88px] lg:grid-cols-[28px_64px_84px_56px_minmax(160px,2fr)_minmax(140px,1.5fr)_88px] xl:grid-cols-[28px_64px_84px_56px_minmax(160px,2fr)_minmax(140px,1.5fr)_minmax(160px,1.5fr)_88px] items-center gap-2 px-3'
 
 function TrackRow({ index, style, getTrack, onSelectTrack }) {
   // Le virtualiseur peut redemander un rendu pour `index` un tick avant que le
