@@ -40,6 +40,17 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
     advanceTimeoutRef.current = setTimeout(() => onAnswered(isCorrect), REVEAL_DELAY_MS)
   }, [question, player, onAnswered])
 
+  // Passer le titre (ex: vidéo YouTube indisponible) : ne compte ni pour ni
+  // contre le score, avance tout de suite (pas de délai de reveal).
+  const handleSkip = useCallback(() => {
+    if (answeredRef.current) return
+    answeredRef.current = true
+    clearInterval(timerRef.current)
+    clearTimeout(advanceTimeoutRef.current)
+    player.stop()
+    onAnswered('skipped')
+  }, [player, onAnswered])
+
   // Charge/joue la track et démarre le chrono : une fois par montage (= par question).
   useEffect(() => {
     const playback = resolvePlaybackId(question.playback.source, question.playback.source_track_id)
@@ -109,6 +120,15 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
             {question.reveal.year && <span className="text-gray-400"> ({question.reveal.year})</span>}
           </div>
         )}
+        {!answered && (
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline"
+          >
+            Passer (bug de son)
+          </button>
+        )}
       </div>
 
       {/* Réponse */}
@@ -142,13 +162,18 @@ function BlindTestGame({ questions, settings, searchPool, onFinish, onAbort }) {
   const total = questions.length
   const question = questions[index]
 
-  const handleAnswered = useCallback((isCorrect) => {
+  // `result` : true/false (répondu) ou 'skipped' (passé — ne compte ni pour ni
+  // contre le score, cf. bouton "Passer" dans QuestionRunner).
+  const handleAnswered = useCallback((result) => {
+    const skipped = result === 'skipped'
+    const isCorrect = result === true
     const nextScore = isCorrect ? score + 1 : score
     const nextHistory = [...history, {
       source: question.playback.source,
       source_track_id: question.playback.source_track_id,
       reveal: question.reveal,
       isCorrect,
+      skipped,
     }]
     setScore(nextScore)
     setHistory(nextHistory)
@@ -156,7 +181,9 @@ function BlindTestGame({ questions, settings, searchPool, onFinish, onAbort }) {
       setIndex((i) => i + 1)
     } else {
       player.stop()
-      onFinish({ score: nextScore, total, history: nextHistory })
+      const scoredTotal = nextHistory.filter((h) => !h.skipped).length
+      const skippedCount = nextHistory.filter((h) => h.skipped).length
+      onFinish({ score: nextScore, total: scoredTotal, skippedCount, history: nextHistory })
     }
   }, [index, total, score, history, question, player, onFinish])
 

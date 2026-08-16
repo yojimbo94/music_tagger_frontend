@@ -46,12 +46,12 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
 
   const ratio = result.total > 0 ? result.score / result.total : 0
   const message = ratio === 1
-    ? 'Score parfait ! 🏆'
+    ? 'Trop chaud 🏆!'
     : ratio >= 0.7
-      ? 'Très solide ! 🔥'
+      ? 'Propre 🔥'
       : ratio >= 0.4
-        ? 'Pas mal !'
-        : 'Retente ta chance !'
+        ? 'Ok ok'
+        : 'À chier wtf'
 
   const openEntry = useCallback(async (entry) => {
     setLoadingEntry(entry.source_track_id)
@@ -73,6 +73,11 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
         <p className="text-lg text-gray-700">
           Score : <span className="font-bold text-blue-600">{result.score}</span> / {result.total}
         </p>
+        {result.skippedCount > 0 && (
+          <p className="text-sm text-gray-400">
+            {result.skippedCount} titre{result.skippedCount > 1 ? 's' : ''} passé{result.skippedCount > 1 ? 's' : ''} (non comptabilisé{result.skippedCount > 1 ? 's' : ''})
+          </p>
+        )}
         <div className="flex gap-3 justify-center">
           <button
             onClick={onReplay}
