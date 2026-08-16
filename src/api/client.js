@@ -166,6 +166,12 @@ export function getStyles() {
   return request('/api/styles').then((d) => d.styles || [])
 }
 
+// Styles triés par nombre de tracks (du plus fréquent au moins fréquent) —
+// aide à repérer les styles importants pour la liste des styles attendus.
+export function getStyleCounts() {
+  return request('/api/styles/counts').then((d) => d.styles || [])
+}
+
 export function getGenres() {
   return request('/api/genres').then((d) => d.genres || [])
 }
