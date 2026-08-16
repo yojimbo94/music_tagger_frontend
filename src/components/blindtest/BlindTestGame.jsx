@@ -106,7 +106,17 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
 
       {/* Prompt */}
       <div className="text-center py-6">
-        <div className="text-5xl mb-3 select-none">{answered ? '🎵' : '🔊'}</div>
+        {settings.mode === 'search' && settings.blurredCoverHint && question.reveal.image ? (
+          <img
+            src={question.reveal.image}
+            alt=""
+            className={`mx-auto mb-3 h-28 w-28 rounded-lg object-cover bg-gray-100 transition-all duration-700 ${
+              answered ? 'blur-none' : 'blur-lg scale-105'
+            }`}
+          />
+        ) : (
+          <div className="text-5xl mb-3 select-none">{answered ? '🎵' : '🔊'}</div>
+        )}
         <p className="text-gray-500 text-sm">
           {settings.mode === 'year' ? 'De quelle année est ce titre ?' : 'Quel est ce titre ?'}
         </p>

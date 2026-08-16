@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   choicesCount: 4,
   infoFields: ['title', 'artist'],
   showCover: false,
+  blurredCoverHint: false,
   maxResponseSeconds: 15,
   volume: 70,
 }
@@ -153,6 +154,22 @@ function BlindTestSetup({ onStart, starting, error }) {
           </div>
         </div>
 
+        {/* Indice pochette floutée (mode search uniquement) */}
+        {settings.mode === 'search' && (
+          <div>
+            <SectionLabel>Facilité</SectionLabel>
+            <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-300 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 w-fit">
+              <input
+                type="checkbox"
+                checked={settings.blurredCoverHint}
+                onChange={(e) => setSettings((s) => ({ ...s, blurredCoverHint: e.target.checked }))}
+                className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              Pochette floutée
+            </label>
+          </div>
+        )}
+
         {/* Infos affichées dans les choix (mode track uniquement) */}
         {settings.mode === 'track' && (
           <div>
@@ -179,7 +196,7 @@ function BlindTestSetup({ onStart, starting, error }) {
                   onChange={(e) => setSettings((s) => ({ ...s, showCover: e.target.checked }))}
                   className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
-                Pochette (indice visuel)
+                Pochette
               </label>
             </div>
           </div>
