@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useHiddenPlayer } from '../../hooks/useHiddenPlayer'
 import { resolvePlaybackId } from '../../utils/media'
 import ChoiceCard from './ChoiceCard'
+import SearchAnswer from './SearchAnswer'
 import { Volume2, VolumeX } from 'lucide-react'
 
 const REVEAL_DELAY_MS = 2200
@@ -17,7 +18,7 @@ function gridCols(count) {
  * parent) : chaque question repart d'un état local frais (pas besoin d'un effect
  * pour "réinitialiser" quoi que ce soit au changement de question).
  */
-function QuestionRunner({ question, settings, player, onAnswered }) {
+function QuestionRunner({ question, settings, player, searchPool, onAnswered }) {
   const [selectedId, setSelectedId] = useState(null)
   const [answered, setAnswered] = useState(false)
   const [timeLeft, setTimeLeft] = useState(settings.maxResponseSeconds || 0)
@@ -100,30 +101,37 @@ function QuestionRunner({ question, settings, player, onAnswered }) {
         </p>
         {answered && (
           <div className="mt-3 text-sm text-gray-700 animate-fadeIn">
-            <span className="font-medium">{question.reveal.title}</span>
+            <span className={`font-medium ${settings.mode === 'search' ? (selectedId === question.correct_choice_id ? 'text-green-600' : 'text-red-600') : ''}`}>
+              {settings.mode === 'search' && (selectedId === question.correct_choice_id ? '✓ ' : '✗ ')}
+              {question.reveal.title}
+            </span>
             {question.reveal.artist && <span> — {question.reveal.artist}</span>}
             {question.reveal.year && <span className="text-gray-400"> ({question.reveal.year})</span>}
           </div>
         )}
       </div>
 
-      {/* Choix */}
-      <div className={`grid ${gridCols(question.choices.length)} gap-3`}>
-        {question.choices.map((choice) => (
-          <ChoiceCard
-            key={choice.id}
-            choice={choice}
-            state={choiceState(choice.id)}
-            disabled={answered}
-            onClick={() => handleAnswer(choice.id)}
-          />
-        ))}
-      </div>
+      {/* Réponse */}
+      {settings.mode === 'search' ? (
+        <SearchAnswer pool={searchPool} disabled={answered} onSelect={handleAnswer} />
+      ) : (
+        <div className={`grid ${gridCols(question.choices.length)} gap-3`}>
+          {question.choices.map((choice) => (
+            <ChoiceCard
+              key={choice.id}
+              choice={choice}
+              state={choiceState(choice.id)}
+              disabled={answered}
+              onClick={() => handleAnswer(choice.id)}
+            />
+          ))}
+        </div>
+      )}
     </>
   )
 }
 
-function BlindTestGame({ questions, settings, onFinish, onAbort }) {
+function BlindTestGame({ questions, settings, searchPool, onFinish, onAbort }) {
   const [index, setIndex] = useState(0)
   const [score, setScore] = useState(0)
   const [history, setHistory] = useState([])
@@ -196,6 +204,7 @@ function BlindTestGame({ questions, settings, onFinish, onAbort }) {
         question={question}
         settings={settings}
         player={player}
+        searchPool={searchPool}
         onAnswered={handleAnswered}
       />
 

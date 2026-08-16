@@ -118,6 +118,7 @@ function BlindTestView() {
   const [phase, setPhase] = useState('setup') // 'setup' | 'playing' | 'results'
   const [settings, setSettings] = useState(null)
   const [questions, setQuestions] = useState([])
+  const [searchPool, setSearchPool] = useState([])
   const [result, setResult] = useState(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState(null)
@@ -142,6 +143,7 @@ function BlindTestView() {
       }
       setSettings(nextSettings)
       setQuestions(data.questions)
+      setSearchPool(data.search_pool || [])
       setPhase('playing')
     } catch (err) {
       setError(err.message)
@@ -164,6 +166,7 @@ function BlindTestView() {
       <BlindTestGame
         questions={questions}
         settings={settings}
+        searchPool={searchPool}
         onFinish={handleFinish}
         onAbort={handleAbort}
       />

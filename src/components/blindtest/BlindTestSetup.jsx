@@ -130,6 +130,17 @@ function BlindTestSetup({ onStart, starting, error }) {
             </button>
             <button
               type="button"
+              onClick={() => setSettings((s) => ({ ...s, mode: 'search' }))}
+              className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
+                settings.mode === 'search'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Rechercher le titre
+            </button>
+            <button
+              type="button"
               onClick={() => setSettings((s) => ({ ...s, mode: 'year' }))}
               className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
                 settings.mode === 'year'
@@ -187,17 +198,19 @@ function BlindTestSetup({ onStart, starting, error }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de choix</label>
-            <input
-              type="number"
-              min={2}
-              max={8}
-              value={settings.choicesCount}
-              onChange={(e) => setSettings((s) => ({ ...s, choicesCount: Number(e.target.value) || 2 }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          {settings.mode !== 'search' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de choix</label>
+              <input
+                type="number"
+                min={2}
+                max={8}
+                value={settings.choicesCount}
+                onChange={(e) => setSettings((s) => ({ ...s, choicesCount: Number(e.target.value) || 2 }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Temps de réponse max (secondes, 0 = illimité)
