@@ -143,6 +143,15 @@ export function getStats() {
   return request('/api/stats')
 }
 
+// --- Historique des runs de processing (cron + manuel) ---
+export function getProcessingRuns(limit = 20) {
+  return request(`/api/processing/runs?limit=${limit}`).then((d) => d.runs || [])
+}
+
+export function getProcessingRunTracks(runId) {
+  return request(`/api/processing/runs/${runId}/tracks`).then((d) => d.tracks || [])
+}
+
 export function getStyles() {
   return request('/api/styles').then((d) => d.styles || [])
 }
