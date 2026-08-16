@@ -50,7 +50,7 @@ function RunPicker({ runs, selectedRunId, onSelect }) {
   )
 }
 
-function HistoryView() {
+function HistoryView({ isAdmin }) {
   const { addNotification } = useApp()
   const [runs, setRuns] = useState([])
   const [selectedRunId, setSelectedRunId] = useState(null)
@@ -176,6 +176,7 @@ function HistoryView() {
           onClose={() => setSelectedTrack(null)}
           onUpdateDiscogs={handleTrackUpdated}
           onDeleted={handleTrackDeleted}
+          isAdmin={isAdmin}
         />
       )}
     </div>

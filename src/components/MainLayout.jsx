@@ -284,7 +284,7 @@ function MainLayout() {
                         )}
                     </>
                 )}
-                {activeTab === 'history' && <HistoryView />}
+                {activeTab === 'history' && <HistoryView isAdmin={isAdmin} />}
                 {activeTab === 'settings' && <SettingsView isAdmin={isAdmin} />}
                 {activeTab === 'blindtest' && <BlindTestView />}
             </main>
