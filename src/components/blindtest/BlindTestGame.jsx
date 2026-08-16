@@ -111,7 +111,7 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
             src={question.reveal.image}
             alt=""
             className={`mx-auto mb-3 h-28 w-28 rounded-lg object-cover bg-gray-100 transition-all duration-700 ${
-              answered ? 'blur-none' : 'blur-lg scale-105'
+              answered ? 'blur-none' : 'blur-sm'
             }`}
           />
         ) : (
