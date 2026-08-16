@@ -46,7 +46,7 @@ const STATUS_LABEL = {
     failed: { text: '✗ Échoué', className: 'text-red-600' },
 }
 
-function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
+function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin }) {
     const [discogsUrl, setDiscogsUrl] = useState('')
     const [isSearching, setIsSearching] = useState(false)
     const [searchResults, setSearchResults] = useState([])
@@ -337,23 +337,27 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
                         {/* Tag manuel — pour les tracks sans match Discogs */}
                         {isTaggable && (
                             <section className="mt-6 rounded-lg border border-gray-200 bg-blue-50/50 p-4 shadow-sm">
-                                <div className="mb-4">
+                <div className="mb-4">
                                     <h3 className="text-base font-semibold text-gray-900">
                                         Tag manuel
                                     </h3>
+                                    {!isAdmin && (
+                                        <p className="mt-1 text-xs text-amber-700">Réservé à l'administrateur — consultation seule.</p>
+                                    )}
                                 </div>
                                 <div className="space-y-3">
                                     <div>
                                         <label className="mb-1 block text-xs font-medium uppercase text-gray-500">Styles</label>
-                                        <TagPicker value={manualStyles} onChange={setManualStyles} suggestions={knownStyles} placeholder="Ex: Deep House" />
+                                        <TagPicker value={manualStyles} onChange={setManualStyles} suggestions={knownStyles} placeholder="Ex: Deep House" disabled={!isAdmin} />
                                     </div>
                                     <div>
                                         <label className="mb-1 block text-xs font-medium uppercase text-gray-500">Genres</label>
-                                        <TagPicker value={manualGenres} onChange={setManualGenres} suggestions={knownGenres} placeholder="Ex: Electronic" />
+                                        <TagPicker value={manualGenres} onChange={setManualGenres} suggestions={knownGenres} placeholder="Ex: Electronic" disabled={!isAdmin} />
                                     </div>
                                     <button
                                         onClick={handleSaveManualTags}
-                                        disabled={isSavingTags}
+                                        disabled={isSavingTags || !isAdmin}
+                                        title={!isAdmin ? "Réservé à l'administrateur" : undefined}
                                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {isSavingTags ? 'Enregistrement...' : 'Valider les tags'}
@@ -372,7 +376,9 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
                                     Fix manuel release discogs
                                 </h3>
                                 <p className="mt-1 text-sm text-gray-600">
-                                    URL release discogs
+                                    {isAdmin ? 'URL release discogs' : (
+                                        <span className="text-amber-700">Réservé à l'administrateur — consultation seule.</span>
+                                    )}
                                 </p>
                             </div>
 
@@ -384,12 +390,14 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
                                             value={discogsUrl}
                                             onChange={(e) => setDiscogsUrl(e.target.value)}
                                             placeholder="https://www.discogs.com/release/12345"
-                                            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={!isAdmin}
+                                            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
                                         />
                                     </div>
                                     <button
                                         onClick={handleSearchDiscogs}
-                                        disabled={!discogsUrl || isSearching}
+                                        disabled={!discogsUrl || isSearching || !isAdmin}
+                                        title={!isAdmin ? "Réservé à l'administrateur" : undefined}
                                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {isSearching ? 'Recherche...' : 'Rechercher'}
@@ -444,7 +452,8 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted }) {
                 <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
                     <button
                         onClick={handleDelete}
-                        disabled={isDeleting}
+                        disabled={isDeleting || !isAdmin}
+                        title={!isAdmin ? "Réservé à l'administrateur" : undefined}
                         className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Trash2 className="h-4 w-4" />

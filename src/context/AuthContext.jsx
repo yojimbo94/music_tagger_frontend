@@ -3,6 +3,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
   isAuthenticated as hasStoredSession,
+  getRole as getStoredRole,
   setOnAuthExpired
 } from '../api/client'
 
@@ -13,23 +14,34 @@ export function AuthProvider({ children }) {
   // plus vraiment, le premier appel API échoue, se fait rejeter par /auth/refresh,
   // et onAuthExpired nous ramène sur l'écran de login (cf. api/client.js).
   const [isAuthenticated, setIsAuthenticated] = useState(hasStoredSession())
+  // "admin" ou "visitor", fixé par le serveur au login (cf. routes/auth.py) — le
+  // visiteur voit la même interface mais toute action d'écriture est désactivée
+  // côté front et rejetée (403) côté serveur.
+  const [role, setRole] = useState(getStoredRole())
 
   useEffect(() => {
-    setOnAuthExpired(() => setIsAuthenticated(false))
+    setOnAuthExpired(() => {
+      setIsAuthenticated(false)
+      setRole(null)
+    })
   }, [])
 
   const login = useCallback(async (username, password) => {
-    await apiLogin(username, password)
+    const data = await apiLogin(username, password)
     setIsAuthenticated(true)
+    setRole(data.role)
   }, [])
 
   const logout = useCallback(() => {
     apiLogout()
     setIsAuthenticated(false)
+    setRole(null)
   }, [])
 
+  const isAdmin = role === 'admin'
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, role, isAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

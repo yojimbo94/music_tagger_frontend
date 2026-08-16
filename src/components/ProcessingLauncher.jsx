@@ -42,13 +42,19 @@ function ProcessingLauncher({ onLaunch, disabled }) {
         Réessayer tracks non matchées
       </label>
 
-      <button
-        onClick={() => onLaunch(service, { retryFailed })}
-        disabled={disabled}
-        className="ml-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Lancer le processing
-      </button>
+      <div className="ml-auto flex items-center gap-2">
+        {disabled && (
+          <span className="text-xs text-gray-500">Réservé à l'administrateur</span>
+        )}
+        <button
+          onClick={() => onLaunch(service, { retryFailed })}
+          disabled={disabled}
+          title={disabled ? "Réservé à l'administrateur" : undefined}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Lancer le processing
+        </button>
+      </div>
     </div>
   )
 }

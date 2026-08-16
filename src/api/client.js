@@ -5,6 +5,7 @@ export const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'
 
 const ACCESS_TOKEN_KEY = 'tagger_access_token'
 const REFRESH_TOKEN_KEY = 'tagger_refresh_token'
+const ROLE_KEY = 'tagger_role'
 
 export function getAccessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
@@ -18,14 +19,23 @@ export function isAuthenticated() {
   return !!getRefreshToken()
 }
 
-function setTokens({ access_token, refresh_token } = {}) {
+// Rôle du compte connecté ("admin" ou "visitor"), fixé au login (cf. routes/auth.py
+// côté serveur, qui l'embarque comme claim JWT) et inchangé pour toute la session —
+// /auth/refresh ne renvoie qu'un nouvel access token, pas de rôle à remettre à jour.
+export function getRole() {
+  return localStorage.getItem(ROLE_KEY)
+}
+
+function setTokens({ access_token, refresh_token, role } = {}) {
   if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token)
   if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
+  if (role) localStorage.setItem(ROLE_KEY, role)
 }
 
 function clearTokens() {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(ROLE_KEY)
 }
 
 // Callback branché par AuthContext : appelé quand la session ne peut plus être

@@ -6,7 +6,7 @@ import Tag from './Tag'
  * avec possibilité de créer une valeur qui n'existe pas encore.
  * Réutilisé pour le tag manuel (TrackDetailsModal) et la liste d'alertes (SettingsView).
  */
-function TagPicker({ value, onChange, suggestions = [], placeholder = 'Ajouter un tag...' }) {
+function TagPicker({ value, onChange, suggestions = [], placeholder = 'Ajouter un tag...', disabled = false }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
 
@@ -34,13 +34,15 @@ function TagPicker({ value, onChange, suggestions = [], placeholder = 'Ajouter u
         {value.map(tag => (
           <div key={tag} className="flex items-center bg-blue-100 rounded-full pl-2 pr-1 py-0.5">
             <Tag tag={tag} />
-            <button
-              type="button"
-              onClick={() => removeTag(tag)}
-              className="ml-1 text-blue-600 hover:text-blue-800 text-xs"
-            >
-              ×
-            </button>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => removeTag(tag)}
+                className="ml-1 text-blue-600 hover:text-blue-800 text-xs"
+              >
+                ×
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -57,9 +59,10 @@ function TagPicker({ value, onChange, suggestions = [], placeholder = 'Ajouter u
           }
         }}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+        className="w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"
       />
-      {open && (query || filteredSuggestions.length > 0) && (
+      {!disabled && open && (query || filteredSuggestions.length > 0) && (
         <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-lg">
           {filteredSuggestions.map(s => (
             <button

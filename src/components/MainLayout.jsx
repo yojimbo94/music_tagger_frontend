@@ -41,7 +41,7 @@ function MainLayout() {
         handleProcessingDone
     } = useApp();
 
-    const { logout } = useAuth();
+    const { logout, isAdmin } = useAuth();
 
     // --- Suivi temps réel du processing (Socket.IO) ---
     useProcessingSocket({
@@ -191,7 +191,17 @@ function MainLayout() {
             <header className="bg-white shadow-sm sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-14 sm:h-16">
-                        <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Music Processing</h1>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Music Processing</h1>
+                            {!isAdmin && (
+                                <span
+                                    className="shrink-0 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded-full"
+                                    title="Consultation uniquement : les actions de modification sont désactivées"
+                                >
+                                    Visiteur
+                                </span>
+                            )}
+                        </div>
                         <button
                             onClick={logout}
                             className="ml-4 shrink-0 grid place-items-center h-10 w-10 sm:h-auto sm:w-auto sm:px-3 sm:py-2 text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
@@ -225,7 +235,7 @@ function MainLayout() {
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
                 {activeTab === 'tracks' && (
                     <>
-                        <ProcessingLauncher onLaunch={handleStartProcessing} />
+                        <ProcessingLauncher onLaunch={handleStartProcessing} disabled={!isAdmin} />
 
                         <FilterBar
                             filters={filters}
@@ -269,13 +279,14 @@ function MainLayout() {
                                 onClose={handleCloseModal}
                                 onUpdateDiscogs={handleTrackUpdated}
                                 onDeleted={handleTrackDeleted}
+                                isAdmin={isAdmin}
                             />
                         )}
                     </>
                 )}
                 {activeTab === 'playlists' && <PlaylistsView />}
                 {activeTab === 'history' && <HistoryView />}
-                {activeTab === 'settings' && <SettingsView />}
+                {activeTab === 'settings' && <SettingsView isAdmin={isAdmin} />}
                 {activeTab === 'blindtest' && <BlindTestView />}
             </main>
 
