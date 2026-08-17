@@ -56,38 +56,73 @@ function Section({ title, empty, children }) {
   )
 }
 
+const MODE_TABS = [
+  { key: '', label: 'Tous les modes' },
+  { key: 'track', label: 'Choix multiples' },
+  { key: 'search', label: 'Recherche' },
+  { key: 'year', label: 'Année' },
+]
+
 function BlindTestStats({ role }) {
+  const [mode, setMode] = useState('')
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const { addNotification } = useApp()
 
   useEffect(() => {
     setLoading(true)
-    getBlindTestStats()
+    getBlindTestStats(mode || undefined)
       .then(setStats)
       .catch((err) => addNotification('error', `Erreur: ${err.message}`))
       .finally(() => setLoading(false))
-  }, [addNotification])
+  }, [mode, addNotification])
+
+  const modeTabs = (
+    <div className="flex gap-1 flex-wrap">
+      {MODE_TABS.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          onClick={() => setMode(tab.key)}
+          className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+            mode === tab.key
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  )
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-32">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      <div className="space-y-6">
+        {modeTabs}
+        <div className="flex justify-center items-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
       </div>
     )
   }
 
   if (!stats || stats.total_answers === 0) {
     return (
-      <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 text-center text-sm text-gray-500">
-        Aucune partie jouée pour l'instant{role ? ` en tant que ${role === 'admin' ? 'admin' : 'visiteur'}` : ''}.
-        Lance un blind test pour commencer à accumuler des stats.
+      <div className="space-y-6">
+        {modeTabs}
+        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 text-center text-sm text-gray-500">
+          Aucune partie jouée pour l'instant{role ? ` en tant que ${role === 'admin' ? 'admin' : 'visiteur'}` : ''}.
+          Lance un blind test pour commencer à accumuler des stats.
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      {modeTabs}
+
       <p className="text-xs text-gray-400">
         Stats {role === 'admin' ? 'admin' : 'visiteur'}
       </p>

@@ -228,8 +228,9 @@ export function submitBlindTestAnswers(mode, answers) {
   })
 }
 
-export function getBlindTestStats() {
-  return request('/api/blindtest/stats')
+export function getBlindTestStats(mode) {
+  const query = mode ? `?mode=${encodeURIComponent(mode)}` : ''
+  return request(`/api/blindtest/stats${query}`)
 }
 
 export function getBlindTestTrackStats(tracks) {
