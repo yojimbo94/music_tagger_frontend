@@ -127,7 +127,10 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
               {question.reveal.title}
             </span>
             {question.reveal.artist && <span> — {question.reveal.artist}</span>}
-            {question.reveal.year && <span className="text-gray-400"> ({question.reveal.year})</span>}
+            {/* `year` vaut parfois 0 (Discogs renvoie 0, pas null, quand l'année
+                est inconnue) : `year && <span>` afficherait alors "0" tel quel
+                (React rend un nombre falsy littéralement) — ternaire obligatoire. */}
+            {question.reveal.year ? <span className="text-gray-400"> ({question.reveal.year})</span> : null}
           </div>
         )}
         {!answered && (
