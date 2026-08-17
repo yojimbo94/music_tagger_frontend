@@ -1,14 +1,18 @@
-import { useCallback, useState } from 'react'
-import { startBlindTestRound, getTrack } from '../api/client'
+import { useCallback, useEffect, useState } from 'react'
+import { startBlindTestRound, submitBlindTestAnswers, getBlindTestTrackStats, getTrack } from '../api/client'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import BlindTestSetup from './blindtest/BlindTestSetup'
 import BlindTestGame from './blindtest/BlindTestGame'
+import BlindTestStats from './blindtest/BlindTestStats'
 import TrackDetailsModal from './TrackDetailsModal'
 
-function RecapRow({ entry, onOpen, loading }) {
-  const stateClass = entry.isCorrect
-    ? 'border-green-200 bg-green-50 hover:bg-green-100'
-    : 'border-red-200 bg-red-50 hover:bg-red-100'
+function RecapRow({ entry, stats, onOpen, loading }) {
+  const stateClass = entry.skipped
+    ? 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+    : entry.isCorrect
+      ? 'border-green-200 bg-green-50 hover:bg-green-100'
+      : 'border-red-200 bg-red-50 hover:bg-red-100'
 
   return (
     <button
@@ -17,8 +21,8 @@ function RecapRow({ entry, onOpen, loading }) {
       disabled={loading}
       className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${stateClass}`}
     >
-      <span className={`text-lg ${entry.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-        {entry.isCorrect ? '✓' : '✗'}
+      <span className={`text-lg ${entry.skipped ? 'text-gray-400' : entry.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+        {entry.skipped ? '⏭' : entry.isCorrect ? '✓' : '✗'}
       </span>
       {entry.reveal.image && (
         <img
@@ -35,6 +39,12 @@ function RecapRow({ entry, onOpen, loading }) {
           {entry.reveal.year ? ` · ${entry.reveal.year}` : ''}
         </div>
       </div>
+      {stats && stats.plays > 0 && (
+        <div className="shrink-0 text-right text-xs text-gray-500">
+          <div>{stats.correct} / {stats.plays} au total</div>
+          <div className="text-gray-400">{Math.round(stats.success_rate * 100)}% de réussite</div>
+        </div>
+      )}
     </button>
   )
 }
@@ -42,7 +52,21 @@ function RecapRow({ entry, onOpen, loading }) {
 function ResultsScreen({ result, onReplay, onNewSettings }) {
   const [selectedTrack, setSelectedTrack] = useState(null)
   const [loadingEntry, setLoadingEntry] = useState(null)
+  const [trackStats, setTrackStats] = useState({})
   const { addNotification } = useApp()
+
+  // Stats perso (nb d'apparitions / % de réussite, tous rounds confondus) pour
+  // les titres de ce round — chargées en un seul appel groupé, pas par titre.
+  useEffect(() => {
+    if (!result.history?.length) return
+    const tracks = result.history.map((entry) => ({
+      source: entry.source,
+      source_track_id: entry.source_track_id,
+    }))
+    getBlindTestTrackStats(tracks)
+      .then(setTrackStats)
+      .catch(() => {}) // stats accessoires : un échec ne doit pas gêner l'écran de résultat
+  }, [result.history])
 
   const ratio = result.total > 0 ? result.score / result.total : 0
   const message = ratio === 1
@@ -101,6 +125,7 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
             <RecapRow
               key={`${entry.source}-${entry.source_track_id}-${i}`}
               entry={entry}
+              stats={trackStats[`${entry.source}:${entry.source_track_id}`]}
               onOpen={() => openEntry(entry)}
               loading={loadingEntry === entry.source_track_id}
             />
@@ -120,8 +145,9 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
 }
 
 function BlindTestView() {
-  const [phase, setPhase] = useState('setup') // 'setup' | 'playing' | 'results'
+  const [phase, setPhase] = useState('setup') // 'setup' | 'playing' | 'results' | 'stats'
   const [settings, setSettings] = useState(null)
+  const { role } = useAuth()
   const [questions, setQuestions] = useState([])
   const [searchPool, setSearchPool] = useState([])
   const [result, setResult] = useState(null)
@@ -160,7 +186,21 @@ function BlindTestView() {
   const handleFinish = useCallback((finalResult) => {
     setResult(finalResult)
     setPhase('results')
-  }, [])
+
+    // Envoi des réponses pour les stats — best-effort, ne bloque pas l'affichage
+    // du résultat. Les titres passés (skipped) ne sont pas transmis : ils ne
+    // comptent ni pour ni contre (cf. src/domain/blindtest.py côté serveur).
+    const answers = (finalResult.history || [])
+      .filter((entry) => !entry.skipped)
+      .map((entry) => ({
+        source: entry.source,
+        source_track_id: entry.source_track_id,
+        is_correct: entry.isCorrect,
+      }))
+    if (answers.length > 0) {
+      submitBlindTestAnswers(settings?.mode, answers).catch(() => {})
+    }
+  }, [settings])
 
   const handleAbort = useCallback(() => {
     setPhase('setup')
@@ -188,7 +228,35 @@ function BlindTestView() {
     )
   }
 
-  return <BlindTestSetup onStart={launchRound} starting={starting} error={error} />
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 border-b border-gray-200">
+        {[
+          { key: 'setup', label: 'Jouer' },
+          { key: 'stats', label: 'Mes stats' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setPhase(tab.key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              phase === tab.key
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {phase === 'stats' ? (
+        <BlindTestStats role={role} />
+      ) : (
+        <BlindTestSetup onStart={launchRound} starting={starting} error={error} />
+      )}
+    </div>
+  )
 }
 
 export default BlindTestView

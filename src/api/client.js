@@ -220,3 +220,21 @@ export function startBlindTestRound(config) {
     body: JSON.stringify(config)
   })
 }
+
+export function submitBlindTestAnswers(mode, answers) {
+  return request('/api/blindtest/answers', {
+    method: 'POST',
+    body: JSON.stringify({ mode, answers })
+  })
+}
+
+export function getBlindTestStats() {
+  return request('/api/blindtest/stats')
+}
+
+export function getBlindTestTrackStats(tracks) {
+  return request('/api/blindtest/stats/tracks', {
+    method: 'POST',
+    body: JSON.stringify({ tracks })
+  })
+}
