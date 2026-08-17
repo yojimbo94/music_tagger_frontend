@@ -243,7 +243,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/30 backdrop-blur-sm">
             <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
                 {/* Header */}
-                <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
+                <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2">
                             <h2 className="truncate text-xl font-semibold text-gray-900">{title}</h2>
@@ -264,9 +264,13 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
                     à elle seule dépasser la hauteur du modal, rendant tout illisible et
                     non scrollable). À partir de lg, on repasse au layout 2 colonnes avec
                     scroll indépendant sur `main` comme avant. */}
-                <div className="relative grid flex-1 overflow-y-auto lg:grid-cols-[360px_1fr] lg:overflow-hidden">
-                    {/* Sidebar */}
-                    <aside className="border-b border-gray-200 bg-gray-50 p-5 lg:border-b-0 lg:border-r lg:border-gray-200">
+                <div className="relative grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[360px_1fr] lg:overflow-hidden">
+                    {/* Sidebar — `lg:overflow-y-auto` + `lg:min-h-0` : sans ça, si le
+                        contenu (pochette + lecteur + tags) dépasse la hauteur dispo, la
+                        ligne de la grille grandit pour l'accueillir et pousse tout le bloc
+                        au-delà du max-h de la modale, coupant le bas du `main` même en
+                        scrollant à fond. */}
+                    <aside className="border-b border-gray-200 bg-gray-50 p-5 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:border-gray-200">
                         <div className="space-y-4">
                             {/* Album Cover — largeur plafonnée sur mobile : en aspect-square
                                 pleine largeur, elle occupait tout l'écran sur un téléphone étroit. */}
@@ -338,7 +342,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
                     </aside>
 
                     {/* Main Content Area */}
-                    <main className="min-w-0 p-5 lg:overflow-y-auto">
+                    <main className="min-w-0 p-5 pb-8 lg:min-h-0 lg:overflow-y-auto">
                         <div className="grid gap-4 sm:grid-cols-2">
                             {trackInfo.filter(Boolean).map((item) => {
                                 if (item.type === 'separator') {
@@ -474,7 +478,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
+                <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
                     <div className="flex items-center gap-1">
                         <button
                             onClick={handleDelete}
