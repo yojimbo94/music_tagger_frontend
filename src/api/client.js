@@ -148,6 +148,10 @@ export function deleteTrack(source, sourceTrackId) {
   return request(`/api/tracks/${source}/${sourceTrackId}`, { method: 'DELETE' })
 }
 
+export function resetTrack(source, sourceTrackId) {
+  return request(`/api/tracks/${source}/${sourceTrackId}/reset`, { method: 'POST' })
+}
+
 // --- Stats / référentiels ---
 export function getStats() {
   return request('/api/stats')

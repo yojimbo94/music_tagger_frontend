@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
-import { updateTrackDiscogs, setManualTags, getStyles, getGenres, deleteTrack } from '../api/client'
+import { updateTrackDiscogs, setManualTags, getStyles, getGenres, deleteTrack, resetTrack } from '../api/client'
 import { resolvePlaybackId } from '../utils/media'
 import Tag from './Tag'
 import TagPicker from './TagPicker'
@@ -8,6 +8,7 @@ import {
     X,
     ChevronRight,
     Trash2,
+    RotateCcw,
 } from 'lucide-react'
 
 function getMediaPlayer(track) {
@@ -56,6 +57,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
     const [knownStyles, setKnownStyles] = useState([])
     const [knownGenres, setKnownGenres] = useState([])
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isResetting, setIsResetting] = useState(false)
     const { addNotification } = useApp()
 
     const mediaPlayer = useMemo(() => getMediaPlayer(track), [track])
@@ -156,6 +158,29 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
             setIsDeleting(false)
         }
     }, [track, onDeleted, onClose, addNotification])
+
+    const handleReset = useCallback(async () => {
+        const confirmed = window.confirm(
+            `Réinitialiser "${track.source_title}" ? Le match Discogs / les tags manuels seront effacés, le titre repassera en "non matché" : retiré des playlists de styles/genres actuelles et ajouté à "Not Found".`
+        )
+        if (!confirmed) return
+
+        setIsResetting(true)
+        try {
+            const data = await resetTrack(track.source, track.source_track_id)
+            if (data?.warning) {
+                addNotification('warning', data.warning)
+            } else {
+                addNotification('success', 'Track réinitialisée')
+            }
+            onUpdateDiscogs?.(data.track, null)
+            onClose()
+        } catch (error) {
+            addNotification('error', `Erreur lors de la réinitialisation: ${error.message}`)
+        } finally {
+            setIsResetting(false)
+        }
+    }, [track, onUpdateDiscogs, onClose, addNotification])
 
     const trackInfo = useMemo(() => {
         const baseRows = [
@@ -450,15 +475,28 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
 
                 {/* Footer */}
                 <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4">
-                    <button
-                        onClick={handleDelete}
-                        disabled={isDeleting || !isAdmin}
-                        title={!isAdmin ? "Réservé à l'administrateur" : undefined}
-                        className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                        {isDeleting ? 'Suppression...' : 'Supprimer la track'}
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={handleDelete}
+                            disabled={isDeleting || !isAdmin}
+                            title={!isAdmin ? "Réservé à l'administrateur" : undefined}
+                            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            {isDeleting ? 'Suppression...' : 'Supprimer la track'}
+                        </button>
+                        {(track.status === 'matched' || track.status === 'manual') && (
+                            <button
+                                onClick={handleReset}
+                                disabled={isResetting || !isAdmin}
+                                title={!isAdmin ? "Réservé à l'administrateur" : 'Repasse la track en non matché : retirée des playlists actuelles, ajoutée à "Not Found"'}
+                                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <RotateCcw className="h-4 w-4" />
+                                {isResetting ? 'Réinitialisation...' : 'Réinitialiser'}
+                            </button>
+                        )}
+                    </div>
                     <button
                         onClick={onClose}
                         className="inline-flex items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
