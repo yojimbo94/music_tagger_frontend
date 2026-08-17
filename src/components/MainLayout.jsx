@@ -11,13 +11,13 @@ import FilterBar from './FilterBar';
 import SettingsView from './SettingsView';
 import BlindTestView from './BlindTestView';
 import HistoryView from './HistoryView';
+import PlaylistsView from './PlaylistsView';
 import { LogOut } from 'lucide-react';
 
-// Onglet "playlists" temporairement masqué (pas utile pour l'instant) — le
-// composant PlaylistsView reste dans le repo, prêt à être réactivé ici.
 const TABS = [
     { key: 'tracks', label: 'Tracks' },
     { key: 'history', label: 'Historique' },
+    { key: 'playlists', label: 'Playlists' },
     { key: 'settings', label: 'Paramètres' },
     { key: 'blindtest', label: 'Blind test' },
 ];
@@ -285,6 +285,7 @@ function MainLayout() {
                     </>
                 )}
                 {activeTab === 'history' && <HistoryView isAdmin={isAdmin} />}
+                {activeTab === 'playlists' && <PlaylistsView isAdmin={isAdmin} />}
                 {activeTab === 'settings' && <SettingsView isAdmin={isAdmin} />}
                 {activeTab === 'blindtest' && <BlindTestView />}
             </main>

@@ -192,9 +192,51 @@ export function setAlertStyles(styles) {
   })
 }
 
-// --- Playlists ---
-export function getPlaylists(source) {
-  return request(`/process/playlists?source=${source}`)
+// --- Playlists gérées (styles simples ou combinés) ---
+export function getManagedPlaylists(source) {
+  return request(`/api/playlists?source=${source}`).then((d) => d.playlists || [])
+}
+
+export function importLegacyPlaylists(source) {
+  return request('/api/playlists/import', {
+    method: 'POST',
+    body: JSON.stringify({ source })
+  })
+}
+
+export function previewPlaylist(source, styles) {
+  return request('/api/playlists/preview', {
+    method: 'POST',
+    body: JSON.stringify({ source, styles })
+  })
+}
+
+export function createPlaylist(source, name, styles) {
+  return request('/api/playlists', {
+    method: 'POST',
+    body: JSON.stringify({ source, name, styles })
+  })
+}
+
+export function setPlaylistActive(playlistId, active) {
+  return request(`/api/playlists/${playlistId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active })
+  })
+}
+
+export function deletePlaylist(playlistId, deleteExternal = false) {
+  return request(`/api/playlists/${playlistId}?delete_external=${deleteExternal}`, {
+    method: 'DELETE'
+  })
+}
+
+export function getPlaylistSync(playlistId) {
+  return request(`/api/playlists/${playlistId}/sync`)
+}
+
+export function reconcilePlaylist(playlistId) {
+  return request(`/api/playlists/${playlistId}/reconcile`, { method: 'POST' })
 }
 
 // --- Processing ---
