@@ -183,13 +183,9 @@ function BlindTestView() {
     }
   }, [])
 
-  const handleFinish = useCallback((finalResult) => {
-    setResult(finalResult)
-    setPhase('results')
-
-    // Envoi des réponses pour les stats — best-effort, ne bloque pas l'affichage
-    // du résultat. Les titres passés (skipped) ne sont pas transmis : ils ne
-    // comptent ni pour ni contre (cf. src/domain/blindtest.py côté serveur).
+  const handleFinish = useCallback(async (finalResult) => {
+    // Les titres passés (skipped) ne sont pas transmis : ils ne comptent ni
+    // pour ni contre (cf. src/domain/blindtest.py côté serveur).
     const answers = (finalResult.history || [])
       .filter((entry) => !entry.skipped)
       .map((entry) => ({
@@ -197,9 +193,23 @@ function BlindTestView() {
         source_track_id: entry.source_track_id,
         is_correct: entry.isCorrect,
       }))
+
+    // On attend que les réponses soient bien enregistrées AVANT d'afficher
+    // l'écran de résultat : celui-ci va aussitôt aller chercher les stats par
+    // titre, et sans cet await la lecture partait souvent avant que
+    // l'écriture soit terminée (les titres de cette manche manquaient alors
+    // dans leurs propres stats). Best-effort : un échec n'empêche pas
+    // d'afficher le résultat, seules les stats ne seront pas à jour.
     if (answers.length > 0) {
-      submitBlindTestAnswers(settings?.mode, answers).catch(() => {})
+      try {
+        await submitBlindTestAnswers(settings?.mode, answers)
+      } catch {
+        // ignoré : cf. commentaire ci-dessus
+      }
     }
+
+    setResult(finalResult)
+    setPhase('results')
   }, [settings])
 
   const handleAbort = useCallback(() => {
