@@ -54,6 +54,7 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
   const [loadingEntry, setLoadingEntry] = useState(null)
   const [trackStats, setTrackStats] = useState({})
   const { addNotification } = useApp()
+  const { isAdmin } = useAuth()
 
   // Stats perso (nb d'apparitions / % de réussite, tous rounds confondus) pour
   // les titres de ce round — chargées en un seul appel groupé, pas par titre.
@@ -88,6 +89,18 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
       setLoadingEntry(null)
     }
   }, [addNotification])
+
+  // Reflète en direct dans la modale une modif Discogs / des tags manuels faite
+  // depuis le blind test (le récap lui-même reste tel quel : c'est un historique
+  // de ce qui a été demandé pendant la partie, pas une vue live des tracks).
+  const handleTrackUpdated = useCallback((updatedTrack) => {
+    if (!updatedTrack) return
+    setSelectedTrack((prev) => (prev ? { ...prev, ...updatedTrack } : prev))
+  }, [])
+
+  const handleTrackDeleted = useCallback(() => {
+    setSelectedTrack(null)
+  }, [])
 
   return (
     <div className="mx-auto max-w-md space-y-6 py-10">
@@ -137,7 +150,9 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
         <TrackDetailsModal
           track={selectedTrack}
           onClose={() => setSelectedTrack(null)}
-          onUpdateDiscogs={() => {}}
+          onUpdateDiscogs={handleTrackUpdated}
+          onDeleted={handleTrackDeleted}
+          isAdmin={isAdmin}
         />
       )}
     </div>
