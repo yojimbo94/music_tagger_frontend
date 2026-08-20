@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import Tag from './Tag'
+import { displayArtist } from '../utils/artist'
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
@@ -40,7 +41,7 @@ function TrackRow({ index, style, getTrack, onSelectTrack }) {
     if (!track) return null
     const isMatched = track.status === 'matched' || track.status === 'manual'
     const title = track.source_title
-    const artist = isMatched ? (track.discogs_artist || track.source_artist) : track.source_artist
+    const artist = isMatched ? displayArtist(track) : track.source_artist
     const meta = STATUS_META[track.status] || STATUS_META.default
     const allTags = [...(track.styles || []), ...(track.genres || [])]
 

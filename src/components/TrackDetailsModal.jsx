@@ -2,6 +2,7 @@ import { memo, useMemo, useState, useCallback, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { updateTrackDiscogs, setManualTags, getStyles, getGenres, deleteTrack, resetTrack } from '../api/client'
 import { resolvePlaybackId } from '../utils/media'
+import { displayArtist } from '../utils/artist'
 import Tag from './Tag'
 import TagPicker from './TagPicker'
 import {
@@ -203,9 +204,19 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
                 statusRow,
                 { type: 'separator', key: 'separator-discogs' },
                 { type: 'section', key: 'discogs-title', value: 'Informations Discogs' },
-                { type: 'row', key: 'artist', label: 'Artiste', value: track.discogs_artist },
+                { type: 'row', key: 'artist', label: 'Artiste', value: displayArtist(track) },
                 { type: 'row', key: 'album', label: 'Album', value: track.discogs_album },
                 { type: 'row', key: 'year', label: 'Année', value: track.year },
+                {
+                    type: 'row',
+                    key: 'label',
+                    label: 'Label',
+                    value: track.discogs_label
+                        ? (track.discogs_label_url
+                            ? <a href={track.discogs_label_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{track.discogs_label}</a>
+                            : track.discogs_label)
+                        : '—'
+                },
                 { type: 'row', key: 'release-id', label: 'ID Release', value: track.discogs_release_id },
                 { type: 'row', key: 'master-id', label: 'ID Master', value: track.discogs_master_id },
                 {
@@ -236,7 +247,7 @@ function TrackDetailsModal({ track, onClose, onUpdateDiscogs, onDeleted, isAdmin
     }, [track])
 
     const title = (track.status === 'matched' || track.status === 'manual') ? (track.discogs_album || track.source_title) : track.source_title
-    const subtitle = `${track.discogs_artist || track.source_artist || 'Artiste inconnu'}${track.year ? ` · ${track.year}` : ''}`
+    const subtitle = `${displayArtist(track) || 'Artiste inconnu'}${track.year ? ` · ${track.year}` : ''}`
     const tags = [...(track.styles || []), ...(track.genres || [])]
 
     return (

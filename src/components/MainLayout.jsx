@@ -137,6 +137,7 @@ function MainLayout() {
                     track.source_artist,
                     track.discogs_album,
                     track.discogs_artist,
+                    track.discogs_track_artist,
                     track.source,
                     track.source_album,
                 ].filter(Boolean).join(' ').toLowerCase();
