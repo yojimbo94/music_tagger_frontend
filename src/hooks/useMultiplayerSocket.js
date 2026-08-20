@@ -13,12 +13,12 @@ const NAMESPACE = '/blindtest-mp'
  * Promise), et les événements poussés par le serveur via les callbacks
  * fournies (mêmes conventions que useProcessingSocket.js).
  */
-export function useMultiplayerSocket({ onLobby, onQuestion, onProgress, onReveal, onFinished } = {}) {
+export function useMultiplayerSocket({ onLobby, onQuestion, onProgress, onReveal, onFinished, onRestarted } = {}) {
   const socketRef = useRef(null)
-  const handlersRef = useRef({ onLobby, onQuestion, onProgress, onReveal, onFinished })
+  const handlersRef = useRef({ onLobby, onQuestion, onProgress, onReveal, onFinished, onRestarted })
 
   useEffect(() => {
-    handlersRef.current = { onLobby, onQuestion, onProgress, onReveal, onFinished }
+    handlersRef.current = { onLobby, onQuestion, onProgress, onReveal, onFinished, onRestarted }
   })
 
   useEffect(() => {
@@ -30,6 +30,7 @@ export function useMultiplayerSocket({ onLobby, onQuestion, onProgress, onReveal
     socket.on('mp:progress', (payload) => handlersRef.current.onProgress?.(payload))
     socket.on('mp:reveal', (payload) => handlersRef.current.onReveal?.(payload))
     socket.on('mp:finished', (payload) => handlersRef.current.onFinished?.(payload))
+    socket.on('mp:restarted', (payload) => handlersRef.current.onRestarted?.(payload))
 
     return () => {
       socket.disconnect()
@@ -55,9 +56,10 @@ export function useMultiplayerSocket({ onLobby, onQuestion, onProgress, onReveal
   const join = useCallback((code, nickname, pid) => call('mp:join', { code, nickname, pid }), [call])
   const start = useCallback((code, hostToken) => call('mp:start', { code, host_token: hostToken }), [call])
   const answer = useCallback((code, pid, choiceId) => call('mp:answer', { code, pid, choice_id: choiceId }), [call])
+  const restart = useCallback((code, hostToken) => call('mp:restart', { code, host_token: hostToken }), [call])
   const leave = useCallback((code, pid) => {
     socketRef.current?.emit('mp:leave', { code, pid })
   }, [])
 
-  return { join, start, answer, leave }
+  return { join, start, answer, restart, leave }
 }

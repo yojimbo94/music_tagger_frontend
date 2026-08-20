@@ -32,15 +32,20 @@ function MultiplayerSession({ initialCode = '', hostToken = null, onExit }) {
   const [progress, setProgress] = useState(null)
   const [revealData, setRevealData] = useState(null)
   const [finalScoreboard, setFinalScoreboard] = useState(null)
+  // Récapitulatif des titres de la manche en cours (comme l'écran de résultat
+  // solo, cf. BlindTestView.jsx) — un élément par question, accumulé au fil
+  // des `mp:reveal`, vidé à chaque "Rejouer" (mp:restarted).
+  const [history, setHistory] = useState([])
   const [error, setError] = useState(null)
   const [joining, setJoining] = useState(false)
+  const [replaying, setReplaying] = useState(false)
 
   const codeRef = useRef(code)
   const pidRef = useRef(pid)
   useEffect(() => { codeRef.current = code }, [code])
   useEffect(() => { pidRef.current = pid }, [pid])
 
-  const { join, start, answer, leave } = useMultiplayerSocket({
+  const { join, start, answer, restart, leave } = useMultiplayerSocket({
     onLobby: (data) => setParticipants(data.participants || []),
     onQuestion: (q) => {
       setQuestion(q)
@@ -49,10 +54,25 @@ function MultiplayerSession({ initialCode = '', hostToken = null, onExit }) {
       setPhase('game')
     },
     onProgress: (p) => setProgress(p),
-    onReveal: (data) => setRevealData(data),
+    onReveal: (data) => {
+      setRevealData(data)
+      setHistory((h) => [...h, {
+        reveal: data.reveal,
+        isCorrect: data.per_participant.find((p) => p.pid === pidRef.current)?.correct ?? false,
+      }])
+    },
     onFinished: (data) => {
       setFinalScoreboard(data.scoreboard || [])
       setPhase('finished')
+    },
+    onRestarted: (data) => {
+      setParticipants(data.participants || [])
+      setHistory([])
+      setFinalScoreboard(null)
+      setQuestion(null)
+      setRevealData(null)
+      setProgress(null)
+      setPhase('lobby')
     },
   })
 
@@ -96,6 +116,21 @@ function MultiplayerSession({ initialCode = '', hostToken = null, onExit }) {
   const handleAnswer = useCallback((choiceId) => {
     answer(codeRef.current, pidRef.current, choiceId).catch(() => {})
   }, [answer])
+
+  const handleReplay = useCallback(async () => {
+    setReplaying(true)
+    setError(null)
+    try {
+      await restart(code, hostToken)
+      // La transition vers 'lobby' est pilotée par mp:restarted (diffusé à
+      // toute la room, y compris l'hôte) plutôt que faite ici directement :
+      // ça garde un seul chemin de mise à jour pour tout le monde.
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setReplaying(false)
+    }
+  }, [restart, code, hostToken])
 
   const handleExit = useCallback(() => {
     if (codeRef.current && pidRef.current) leave(codeRef.current, pidRef.current)
@@ -231,7 +266,17 @@ function MultiplayerSession({ initialCode = '', hostToken = null, onExit }) {
   }
 
   if (phase === 'finished') {
-    return <MultiplayerLeaderboard scoreboard={finalScoreboard || participants} myPid={pid} onExit={handleExit} />
+    return (
+      <MultiplayerLeaderboard
+        scoreboard={finalScoreboard || participants}
+        history={history}
+        myPid={pid}
+        onExit={handleExit}
+        onReplay={hostToken ? handleReplay : null}
+        replaying={replaying}
+        error={error}
+      />
+    )
   }
 
   return null
