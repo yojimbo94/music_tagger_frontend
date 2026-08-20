@@ -303,6 +303,15 @@ export function getCachedExternalTracks(playlistIds) {
   return request(`/api/blindtest/external/cached${query}`)
 }
 
+// --- Blind test : session multijoueur (création admin ; rejoindre/jouer se
+// fait ensuite sans JWT, cf. useMultiplayerSocket) ---
+export function createMultiplayerSession(payload) {
+  return request('/api/blindtest/multiplayer/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}
+
 export function startExternalBlindTestRound(payload) {
   return request('/api/blindtest/external/round', {
     method: 'POST',

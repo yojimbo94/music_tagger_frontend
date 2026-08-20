@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { startBlindTestRound, startExternalBlindTestRound, submitBlindTestAnswers, getBlindTestTrackStats, getTrack } from '../api/client'
+import { startBlindTestRound, startExternalBlindTestRound, submitBlindTestAnswers, getBlindTestTrackStats, getTrack, createMultiplayerSession } from '../api/client'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import BlindTestSetup from './blindtest/BlindTestSetup'
 import BlindTestGame from './blindtest/BlindTestGame'
 import BlindTestStats from './blindtest/BlindTestStats'
+import MultiplayerSession from './blindtest/MultiplayerSession'
 import TrackDetailsModal from './TrackDetailsModal'
 
 function RecapRow({ entry, stats, onOpen, loading, isExternal }) {
@@ -189,14 +190,46 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
 }
 
 function BlindTestView() {
-  const [phase, setPhase] = useState('setup') // 'setup' | 'playing' | 'results' | 'stats'
+  const [phase, setPhase] = useState('setup') // 'setup' | 'playing' | 'results' | 'stats' | 'multiplayer'
   const [settings, setSettings] = useState(null)
-  const { role } = useAuth()
+  const { role, isAdmin } = useAuth()
   const [questions, setQuestions] = useState([])
   const [searchPool, setSearchPool] = useState([])
   const [result, setResult] = useState(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState(null)
+
+  // Session multijoueur créée par l'admin (host_token connu seulement de ce
+  // navigateur, cf. plan multijoueur) — tant qu'elle est nulle, l'onglet
+  // "Session" affiche le formulaire de création (admin) ou directement l'écran
+  // de jonction (visiteur, qui ne peut pas créer de session).
+  const [mpSession, setMpSession] = useState(null) // { code, hostToken } | null
+  const [mpStarting, setMpStarting] = useState(false)
+  const [mpError, setMpError] = useState(null)
+
+  const launchMultiplayerSession = useCallback(async (nextSettings) => {
+    setMpStarting(true)
+    setMpError(null)
+    try {
+      const payload = nextSettings.sourceType === 'external'
+        ? { source_type: 'external', tracks: nextSettings.tracks }
+        : { source_type: 'library', sources: nextSettings.sources, styles: nextSettings.styles, genres: nextSettings.genres }
+      const data = await createMultiplayerSession({
+        ...payload,
+        mode: nextSettings.mode,
+        question_count: nextSettings.questionCount,
+        choices_count: nextSettings.choicesCount,
+        info_fields: nextSettings.infoFields,
+        show_cover: nextSettings.showCover,
+        max_response_seconds: nextSettings.maxResponseSeconds,
+      })
+      setMpSession({ code: data.code, hostToken: data.host_token })
+    } catch (err) {
+      setMpError(err.message)
+    } finally {
+      setMpStarting(false)
+    }
+  }, [])
 
   const launchRound = useCallback(async (nextSettings) => {
     setStarting(true)
@@ -306,6 +339,7 @@ function BlindTestView() {
       <div className="flex gap-1 border-b border-gray-200">
         {[
           { key: 'setup', label: 'Jouer' },
+          { key: 'multiplayer', label: 'Session' },
           { key: 'stats', label: 'Mes stats' },
         ].map((tab) => (
           <button
@@ -323,10 +357,24 @@ function BlindTestView() {
         ))}
       </div>
 
-      {phase === 'stats' ? (
-        <BlindTestStats role={role} />
-      ) : (
+      {phase === 'stats' && <BlindTestStats role={role} />}
+
+      {phase === 'setup' && (
         <BlindTestSetup onStart={launchRound} starting={starting} error={error} />
+      )}
+
+      {phase === 'multiplayer' && (
+        mpSession ? (
+          <MultiplayerSession
+            initialCode={mpSession.code}
+            hostToken={mpSession.hostToken}
+            onExit={() => setMpSession(null)}
+          />
+        ) : isAdmin ? (
+          <BlindTestSetup onStart={launchMultiplayerSession} starting={mpStarting} error={mpError} />
+        ) : (
+          <MultiplayerSession />
+        )
       )}
     </div>
   )
