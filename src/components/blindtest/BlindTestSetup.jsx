@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   choicesCount: 4,
   infoFields: ['title', 'artist'],
   showCover: false,
+  largeChoices: false,
   blurredCoverHint: false,
   maxResponseSeconds: 15,
   volume: 70,
@@ -524,11 +525,26 @@ function BlindTestSetup({ onStart, starting, error }) {
                 <input
                   type="checkbox"
                   checked={settings.showCover}
-                  onChange={(e) => setSettings((s) => ({ ...s, showCover: e.target.checked }))}
+                  onChange={(e) => setSettings((s) => ({
+                    ...s,
+                    showCover: e.target.checked,
+                    largeChoices: e.target.checked ? s.largeChoices : false,
+                  }))}
                   className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 Pochette
               </label>
+              {settings.showCover && (
+                <label className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-300 text-sm text-gray-600 cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={settings.largeChoices}
+                    onChange={(e) => setSettings((s) => ({ ...s, largeChoices: e.target.checked }))}
+                    className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  Choix en grand format
+                </label>
+              )}
             </div>
           </div>
         )}

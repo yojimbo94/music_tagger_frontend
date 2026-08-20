@@ -8,8 +8,10 @@ import { Volume2, VolumeX } from 'lucide-react'
 const REVEAL_DELAY_MS = 2200
 const FADE_MS = 900
 
-function gridCols(count) {
-  if (count <= 4) return 'grid-cols-1 sm:grid-cols-2'
+function gridCols(count, large) {
+  // En grand format, on reste sur 2 colonnes max même avec beaucoup de choix
+  // (3 colonnes rendrait les cartes trop petites pour que l'agrandissement ait un sens).
+  if (large || count <= 4) return 'grid-cols-1 sm:grid-cols-2'
   return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
 }
 
@@ -159,13 +161,14 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
       {settings.mode === 'search' ? (
         <SearchAnswer pool={searchPool} disabled={answered} onSelect={handleAnswer} />
       ) : (
-        <div className={`grid ${gridCols(question.choices.length)} gap-3`}>
+        <div className={`grid ${gridCols(question.choices.length, settings.largeChoices)} gap-3`}>
           {question.choices.map((choice) => (
             <ChoiceCard
               key={choice.id}
               choice={choice}
               state={choiceState(choice.id)}
               disabled={answered}
+              large={settings.largeChoices}
               onClick={() => handleAnswer(choice.id)}
             />
           ))}
