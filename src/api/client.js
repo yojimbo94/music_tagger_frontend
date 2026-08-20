@@ -285,3 +285,18 @@ export function getBlindTestTrackStats(tracks) {
     body: JSON.stringify({ tracks })
   })
 }
+
+// --- Blind test : playlists externes (sans Discogs, hors stats) ---
+export function resolveExternalPlaylist(url) {
+  return request('/api/blindtest/external/resolve', {
+    method: 'POST',
+    body: JSON.stringify({ url })
+  })
+}
+
+export function startExternalBlindTestRound(payload) {
+  return request('/api/blindtest/external/round', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}

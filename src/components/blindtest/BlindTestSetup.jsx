@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { getBlindTestConfig } from '../../api/client'
+import { useEffect, useMemo, useState } from 'react'
+import { getBlindTestConfig, resolveExternalPlaylist } from '../../api/client'
 import TagPicker from '../TagPicker'
+import { Loader2, Plus, X, RefreshCw } from 'lucide-react'
 
 const SOURCES = [
   { value: 'spotify', label: 'Spotify' },
@@ -31,10 +32,104 @@ function SectionLabel({ children }) {
   return <div className="text-sm font-medium text-gray-700 mb-2">{children}</div>
 }
 
+let nextPlaylistRowId = 0
+
+/**
+ * Ingestion d'une ou plusieurs playlists externes (Spotify + YouTube Music
+ * mélangeables) : chaque lien ajouté est résolu indépendamment et garde son
+ * propre statut visible (idle est impossible ici, une ligne n'existe qu'une
+ * fois l'appel lancé) — pas besoin du canal Socket.IO du processing classique,
+ * /resolve reste un appel HTTP synchrone assez rapide.
+ */
+function ExternalPlaylistPicker({ playlists, onAdd, onRemove, onRetry }) {
+  const [url, setUrl] = useState('')
+
+  const submit = () => {
+    const trimmed = url.trim()
+    if (!trimmed) return
+    onAdd(trimmed)
+    setUrl('')
+  }
+
+  const doneCount = playlists.filter((p) => p.status === 'done').length
+  const loadingCount = playlists.filter((p) => p.status === 'loading').length
+  const totalTracks = playlists.reduce((sum, p) => sum + (p.status === 'done' ? p.tracks.length : 0), 0)
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), submit())}
+          placeholder="Lien de playlist Spotify ou YouTube Music..."
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!url.trim()}
+          className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+        >
+          <Plus className="h-4 w-4" /> Ajouter
+        </button>
+      </div>
+
+      {playlists.length > 0 && (
+        <div className="space-y-2">
+          {playlists.map((p) => (
+            <div
+              key={p.id}
+              className={`flex items-center gap-3 rounded-lg border p-2.5 text-sm ${
+                p.status === 'error' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
+              }`}
+            >
+              {p.status === 'loading' && <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-blue-500" />}
+              {p.status === 'done' && p.image && (
+                <img src={p.image} alt="" className="h-8 w-8 rounded object-cover flex-shrink-0 bg-gray-200" />
+              )}
+              {p.status === 'error' && <span className="text-red-500 flex-shrink-0">✗</span>}
+
+              <div className="min-w-0 flex-1">
+                {p.status === 'loading' && <div className="text-gray-500">Récupération de la playlist…</div>}
+                {p.status === 'done' && (
+                  <>
+                    <div className="truncate font-medium text-gray-900">{p.name || p.url}</div>
+                    <div className="text-xs text-gray-500">{p.tracks.length} titre{p.tracks.length > 1 ? 's' : ''} chargé{p.tracks.length > 1 ? 's' : ''}</div>
+                  </>
+                )}
+                {p.status === 'error' && <div className="truncate text-red-700">{p.error}</div>}
+              </div>
+
+              {p.status === 'error' && (
+                <button type="button" onClick={() => onRetry(p.id)} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title="Réessayer">
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              )}
+              <button type="button" onClick={() => onRemove(p.id)} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title="Retirer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+
+          <div className="text-xs text-gray-500">
+            {loadingCount > 0
+              ? `Chargement de ${loadingCount} playlist${loadingCount > 1 ? 's' : ''}… (${doneCount} déjà prête${doneCount > 1 ? 's' : ''}, ${totalTracks} titre${totalTracks > 1 ? 's' : ''} au total)`
+              : `${doneCount} playlist${doneCount > 1 ? 's' : ''} chargée${doneCount > 1 ? 's' : ''}, ${totalTracks} titre${totalTracks > 1 ? 's' : ''} au total`}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BlindTestSetup({ onStart, starting, error }) {
   const [availableStyles, setAvailableStyles] = useState([])
   const [availableGenres, setAvailableGenres] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [sourceType, setSourceType] = useState('library') // 'library' | 'external'
+  const [externalPlaylists, setExternalPlaylists] = useState([])
 
   useEffect(() => {
     getBlindTestConfig().then((cfg) => {
@@ -42,6 +137,64 @@ function BlindTestSetup({ onStart, starting, error }) {
       setAvailableGenres(cfg.available_genres || [])
     }).catch(() => {})
   }, [])
+
+  // Bascule automatique sur un mode de jeu valide (pas d'année sans Discogs) au
+  // passage en playlist externe, plutôt que de laisser un mode invalide masqué.
+  const selectSourceType = (value) => {
+    setSourceType(value)
+    if (value === 'external') {
+      setSettings((s) => (s.mode === 'year' ? { ...s, mode: 'track' } : s))
+    }
+  }
+
+  const resolvePlaylistRow = (id, url) => {
+    setExternalPlaylists((rows) => rows.map((r) => (r.id === id ? { ...r, status: 'loading', error: null } : r)))
+    resolveExternalPlaylist(url)
+      .then((data) => {
+        setExternalPlaylists((rows) => rows.map((r) => (r.id === id ? {
+          ...r,
+          status: 'done',
+          name: data.playlist_name,
+          image: data.playlist_image,
+          tracks: data.tracks || [],
+        } : r)))
+      })
+      .catch((err) => {
+        setExternalPlaylists((rows) => rows.map((r) => (r.id === id ? { ...r, status: 'error', error: err.message } : r)))
+      })
+  }
+
+  const addExternalPlaylist = (url) => {
+    const id = ++nextPlaylistRowId
+    setExternalPlaylists((rows) => [...rows, { id, url, status: 'loading', name: null, image: null, tracks: [], error: null }])
+    resolvePlaylistRow(id, url)
+  }
+
+  const removeExternalPlaylist = (id) => {
+    setExternalPlaylists((rows) => rows.filter((r) => r.id !== id))
+  }
+
+  const retryExternalPlaylist = (id) => {
+    const row = externalPlaylists.find((r) => r.id === id)
+    if (row) resolvePlaylistRow(id, row.url)
+  }
+
+  // Fusion dédupliquée (une même track présente dans deux playlists ne compte
+  // qu'une fois) des tracks des playlists résolues avec succès.
+  const externalTracks = useMemo(() => {
+    const seen = new Set()
+    const merged = []
+    for (const p of externalPlaylists) {
+      if (p.status !== 'done') continue
+      for (const t of p.tracks) {
+        const key = `${t.source}:${t.source_track_id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        merged.push(t)
+      }
+    }
+    return merged
+  }, [externalPlaylists])
 
   const toggleSource = (value) => {
     setSettings((s) => {
@@ -71,48 +224,91 @@ function BlindTestSetup({ onStart, starting, error }) {
       )}
 
       <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm space-y-6">
-        {/* Sources */}
+        {/* Type de manche */}
         <div>
-          <SectionLabel>Sources</SectionLabel>
+          <SectionLabel>Type de manche</SectionLabel>
           <div className="flex gap-2">
-            {SOURCES.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => toggleSource(s.value)}
-                className={`px-3 py-2 rounded-md border text-sm transition-colors ${
-                  settings.sources.includes(s.value)
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => selectSourceType('library')}
+              className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
+                sourceType === 'library'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Ma bibliothèque
+            </button>
+            <button
+              type="button"
+              onClick={() => selectSourceType('external')}
+              className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
+                sourceType === 'external'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Playlist(s) externe(s)
+            </button>
           </div>
         </div>
 
-        {/* Styles */}
-        <div>
-          <SectionLabel>Styles (vide = tous)</SectionLabel>
-          <TagPicker
-            value={settings.styles}
-            onChange={(styles) => setSettings((s) => ({ ...s, styles }))}
-            suggestions={availableStyles}
-            placeholder="Ajouter un style..."
-          />
-        </div>
+        {sourceType === 'external' ? (
+          <div>
+            <SectionLabel>Liens de playlist (Spotify et YouTube Music mélangeables)</SectionLabel>
+            <ExternalPlaylistPicker
+              playlists={externalPlaylists}
+              onAdd={addExternalPlaylist}
+              onRemove={removeExternalPlaylist}
+              onRetry={retryExternalPlaylist}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Sources */}
+            <div>
+              <SectionLabel>Sources</SectionLabel>
+              <div className="flex gap-2">
+                {SOURCES.map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => toggleSource(s.value)}
+                    className={`px-3 py-2 rounded-md border text-sm transition-colors ${
+                      settings.sources.includes(s.value)
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Genres */}
-        <div>
-          <SectionLabel>Genres (vide = tous)</SectionLabel>
-          <TagPicker
-            value={settings.genres}
-            onChange={(genres) => setSettings((s) => ({ ...s, genres }))}
-            suggestions={availableGenres}
-            placeholder="Ajouter un genre..."
-          />
-        </div>
+            {/* Styles */}
+            <div>
+              <SectionLabel>Styles (vide = tous)</SectionLabel>
+              <TagPicker
+                value={settings.styles}
+                onChange={(styles) => setSettings((s) => ({ ...s, styles }))}
+                suggestions={availableStyles}
+                placeholder="Ajouter un style..."
+              />
+            </div>
+
+            {/* Genres */}
+            <div>
+              <SectionLabel>Genres (vide = tous)</SectionLabel>
+              <TagPicker
+                value={settings.genres}
+                onChange={(genres) => setSettings((s) => ({ ...s, genres }))}
+                suggestions={availableGenres}
+                placeholder="Ajouter un genre..."
+              />
+            </div>
+          </>
+        )}
 
         {/* Mode */}
         <div>
@@ -140,17 +336,19 @@ function BlindTestSetup({ onStart, starting, error }) {
             >
               Rechercher le titre
             </button>
-            <button
-              type="button"
-              onClick={() => setSettings((s) => ({ ...s, mode: 'year' }))}
-              className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
-                settings.mode === 'year'
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              Deviner l'année de sortie
-            </button>
+            {sourceType === 'library' && (
+              <button
+                type="button"
+                onClick={() => setSettings((s) => ({ ...s, mode: 'year' }))}
+                className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
+                  settings.mode === 'year'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Deviner l'année de sortie
+              </button>
+            )}
           </div>
         </div>
 
@@ -259,11 +457,19 @@ function BlindTestSetup({ onStart, starting, error }) {
         </div>
 
         <button
-          onClick={() => onStart(settings)}
-          disabled={starting}
+          onClick={() => onStart(
+            sourceType === 'external'
+              ? { ...settings, sourceType, tracks: externalTracks }
+              : { ...settings, sourceType }
+          )}
+          disabled={starting || (sourceType === 'external' && externalTracks.length < 2)}
           className="w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {starting ? 'Préparation...' : 'Démarrer le blind test'}
+          {starting
+            ? 'Préparation...'
+            : sourceType === 'external' && externalTracks.length < 2
+              ? 'Ajoute au moins une playlist avec 2 titres ou plus'
+              : 'Démarrer le blind test'}
         </button>
       </div>
     </div>

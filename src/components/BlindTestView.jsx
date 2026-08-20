@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { startBlindTestRound, submitBlindTestAnswers, getBlindTestTrackStats, getTrack } from '../api/client'
+import { startBlindTestRound, startExternalBlindTestRound, submitBlindTestAnswers, getBlindTestTrackStats, getTrack } from '../api/client'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import BlindTestSetup from './blindtest/BlindTestSetup'
@@ -7,20 +7,15 @@ import BlindTestGame from './blindtest/BlindTestGame'
 import BlindTestStats from './blindtest/BlindTestStats'
 import TrackDetailsModal from './TrackDetailsModal'
 
-function RecapRow({ entry, stats, onOpen, loading }) {
+function RecapRow({ entry, stats, onOpen, loading, isExternal }) {
   const stateClass = entry.skipped
     ? 'border-gray-200 bg-gray-50 hover:bg-gray-100'
     : entry.isCorrect
       ? 'border-green-200 bg-green-50 hover:bg-green-100'
       : 'border-red-200 bg-red-50 hover:bg-red-100'
 
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      disabled={loading}
-      className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${stateClass}`}
-    >
+  const content = (
+    <>
       <span className={`text-lg ${entry.skipped ? 'text-gray-400' : entry.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
         {entry.skipped ? '⏭' : entry.isCorrect ? '✓' : '✗'}
       </span>
@@ -39,12 +34,43 @@ function RecapRow({ entry, stats, onOpen, loading }) {
           {entry.reveal.year ? ` · ${entry.reveal.year}` : ''}
         </div>
       </div>
-      {stats && stats.plays > 0 && (
-        <div className="shrink-0 text-right text-xs text-gray-500">
-          <div>{stats.correct} / {stats.plays} au total</div>
-          <div className="text-gray-400">{Math.round(stats.success_rate * 100)}% de réussite</div>
-        </div>
-      )}
+      {isExternal
+        ? (entry.reveal.url && <span className="shrink-0 text-xs text-blue-600 font-medium">▶ Écouter</span>)
+        : (stats && stats.plays > 0 && (
+          <div className="shrink-0 text-right text-xs text-gray-500">
+            <div>{stats.correct} / {stats.plays} au total</div>
+            <div className="text-gray-400">{Math.round(stats.success_rate * 100)}% de réussite</div>
+          </div>
+        ))}
+    </>
+  )
+
+  // Une track de playlist externe n'est pas cataloguée (pas d'infos autres que
+  // titre/artiste/album) : pas de modale de détails, juste un lien direct vers
+  // le titre/la vidéo plutôt qu'un appel API qui échouerait.
+  if (isExternal) {
+    return entry.reveal.url ? (
+      <a
+        href={entry.reveal.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${stateClass}`}
+      >
+        {content}
+      </a>
+    ) : (
+      <div className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left ${stateClass}`}>{content}</div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={loading}
+      className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${stateClass}`}
+    >
+      {content}
     </button>
   )
 }
@@ -58,8 +84,10 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
 
   // Stats perso (nb d'apparitions / % de réussite, tous rounds confondus) pour
   // les titres de ce round — chargées en un seul appel groupé, pas par titre.
+  // Jamais pour un round externe : ces titres ne sont pas enregistrés dans les
+  // stats (cf. handleFinish dans BlindTestView), donc rien à aller chercher.
   useEffect(() => {
-    if (!result.history?.length) return
+    if (result.isExternal || !result.history?.length) return
     const tracks = result.history.map((entry) => ({
       source: entry.source,
       source_track_id: entry.source_track_id,
@@ -67,7 +95,7 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
     getBlindTestTrackStats(tracks)
       .then(setTrackStats)
       .catch(() => {}) // stats accessoires : un échec ne doit pas gêner l'écran de résultat
-  }, [result.history])
+  }, [result.history, result.isExternal])
 
   const ratio = result.total > 0 ? result.score / result.total : 0
   const message = ratio === 1
@@ -141,6 +169,7 @@ function ResultsScreen({ result, onReplay, onNewSettings }) {
               stats={trackStats[`${entry.source}:${entry.source_track_id}`]}
               onOpen={() => openEntry(entry)}
               loading={loadingEntry === entry.source_track_id}
+              isExternal={result.isExternal}
             />
           ))}
         </div>
@@ -173,16 +202,28 @@ function BlindTestView() {
     setStarting(true)
     setError(null)
     try {
-      const data = await startBlindTestRound({
-        sources: nextSettings.sources,
-        styles: nextSettings.styles,
-        genres: nextSettings.genres,
-        mode: nextSettings.mode,
-        question_count: nextSettings.questionCount,
-        choices_count: nextSettings.choicesCount,
-        info_fields: nextSettings.infoFields,
-        show_cover: nextSettings.showCover,
-      })
+      // Playlist(s) externe(s) (lien Spotify/YouTube Music, sans Discogs) : le
+      // pool vient des tracks déjà résolues côté front (BlindTestSetup), pas
+      // des critères sources/styles/genres qui n'ont pas de sens ici.
+      const data = nextSettings.sourceType === 'external'
+        ? await startExternalBlindTestRound({
+          tracks: nextSettings.tracks,
+          mode: nextSettings.mode,
+          question_count: nextSettings.questionCount,
+          choices_count: nextSettings.choicesCount,
+          info_fields: nextSettings.infoFields,
+          show_cover: nextSettings.showCover,
+        })
+        : await startBlindTestRound({
+          sources: nextSettings.sources,
+          styles: nextSettings.styles,
+          genres: nextSettings.genres,
+          mode: nextSettings.mode,
+          question_count: nextSettings.questionCount,
+          choices_count: nextSettings.choicesCount,
+          info_fields: nextSettings.infoFields,
+          show_cover: nextSettings.showCover,
+        })
       if (!data.questions || data.questions.length === 0) {
         setError('Aucune track ne correspond à ces critères.')
         return
@@ -199,27 +240,34 @@ function BlindTestView() {
   }, [])
 
   const handleFinish = useCallback(async (finalResult) => {
-    // Les titres passés (skipped) ne sont pas transmis : ils ne comptent ni
-    // pour ni contre (cf. src/domain/blindtest.py côté serveur).
-    const answers = (finalResult.history || [])
-      .filter((entry) => !entry.skipped)
-      .map((entry) => ({
-        source: entry.source,
-        source_track_id: entry.source_track_id,
-        is_correct: entry.isCorrect,
-      }))
+    const isExternal = settings?.sourceType === 'external'
+    finalResult = { ...finalResult, isExternal }
 
-    // On attend que les réponses soient bien enregistrées AVANT d'afficher
-    // l'écran de résultat : celui-ci va aussitôt aller chercher les stats par
-    // titre, et sans cet await la lecture partait souvent avant que
-    // l'écriture soit terminée (les titres de cette manche manquaient alors
-    // dans leurs propres stats). Best-effort : un échec n'empêche pas
-    // d'afficher le résultat, seules les stats ne seront pas à jour.
-    if (answers.length > 0) {
-      try {
-        await submitBlindTestAnswers(settings?.mode, answers)
-      } catch {
-        // ignoré : cf. commentaire ci-dessus
+    // Playlist externe : jamais enregistrée dans les stats de blind test (pas
+    // de bibliothèque cataloguée derrière ces titres) — on n'appelle même pas
+    // l'API. Les titres passés (skipped) ne sont eux non plus jamais transmis :
+    // ils ne comptent ni pour ni contre (cf. src/domain/blindtest.py côté serveur).
+    if (!isExternal) {
+      const answers = (finalResult.history || [])
+        .filter((entry) => !entry.skipped)
+        .map((entry) => ({
+          source: entry.source,
+          source_track_id: entry.source_track_id,
+          is_correct: entry.isCorrect,
+        }))
+
+      // On attend que les réponses soient bien enregistrées AVANT d'afficher
+      // l'écran de résultat : celui-ci va aussitôt aller chercher les stats par
+      // titre, et sans cet await la lecture partait souvent avant que
+      // l'écriture soit terminée (les titres de cette manche manquaient alors
+      // dans leurs propres stats). Best-effort : un échec n'empêche pas
+      // d'afficher le résultat, seules les stats ne seront pas à jour.
+      if (answers.length > 0) {
+        try {
+          await submitBlindTestAnswers(settings?.mode, answers)
+        } catch {
+          // ignoré : cf. commentaire ci-dessus
+        }
       }
     }
 

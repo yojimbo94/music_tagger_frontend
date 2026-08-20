@@ -131,6 +131,17 @@ function QuestionRunner({ question, settings, player, searchPool, onAnswered }) 
                 est inconnue) : `year && <span>` afficherait alors "0" tel quel
                 (React rend un nombre falsy littéralement) — ternaire obligatoire. */}
             {question.reveal.year ? <span className="text-gray-400"> ({question.reveal.year})</span> : null}
+            {question.reveal.url && (
+              <a
+                href={question.reveal.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                ▶ Écouter
+              </a>
+            )}
           </div>
         )}
         {!answered && (
