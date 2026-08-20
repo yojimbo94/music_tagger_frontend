@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getBlindTestConfig, resolveExternalPlaylist, getCachedExternalTracks } from '../../api/client'
+import { getBlindTestConfig, resolveExternalPlaylist, getCachedExternalPlaylists, getCachedExternalTracks } from '../../api/client'
 import TagPicker from '../TagPicker'
 import { Loader2, Plus, X, RefreshCw, Database } from 'lucide-react'
 
@@ -41,7 +41,10 @@ let nextPlaylistRowId = 0
  * fois l'appel lancé) — pas besoin du canal Socket.IO du processing classique,
  * /resolve reste un appel HTTP synchrone assez rapide.
  */
-function ExternalPlaylistPicker({ playlists, onAdd, onAddCache, onRemove, onRetry, cachedCount }) {
+function ExternalPlaylistPicker({
+  playlists, onAdd, onRemove, onRetry,
+  cachedPlaylists, checkedCachePlaylistIds, onToggleCachePlaylist,
+}) {
   const [url, setUrl] = useState('')
 
   const submit = () => {
@@ -51,10 +54,10 @@ function ExternalPlaylistPicker({ playlists, onAdd, onAddCache, onRemove, onRetr
     setUrl('')
   }
 
-  const cacheAlreadyAdded = playlists.some((p) => p.kind === 'cache')
   const doneCount = playlists.filter((p) => p.status === 'done').length
   const loadingCount = playlists.filter((p) => p.status === 'loading').length
   const totalTracks = playlists.reduce((sum, p) => sum + (p.status === 'done' ? p.tracks.length : 0), 0)
+  const cachedTotalTracks = cachedPlaylists.reduce((sum, p) => sum + p.track_count, 0)
 
   return (
     <div className="space-y-3">
@@ -77,19 +80,38 @@ function ExternalPlaylistPicker({ playlists, onAdd, onAddCache, onRemove, onRetr
         </button>
       </div>
 
-      {/* Titres déjà rencontrés via une playlist externe par le passé (table
-          `external_tracks`, cf. backend) — rejouables sans recoller de lien. */}
-      <button
-        type="button"
-        onClick={onAddCache}
-        disabled={cacheAlreadyAdded || cachedCount == null || cachedCount === 0}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-dashed border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <Database className="h-4 w-4" />
-        {cachedCount == null
-          ? 'Titres déjà en cache…'
-          : `Ajouter les titres déjà en cache (${cachedCount})`}
-      </button>
+      {/* Playlists déjà rencontrées par le passé (table `external_playlists`,
+          cf. backend) — cocher/décocher pour rejouer sans recoller leur lien. */}
+      {cachedPlaylists.length > 0 && (
+        <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+          <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+            <Database className="h-3.5 w-3.5" />
+            Playlists déjà en cache ({cachedPlaylists.length}, {cachedTotalTracks} titre{cachedTotalTracks > 1 ? 's' : ''} au total)
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {cachedPlaylists.map((p) => (
+              <label
+                key={p.id}
+                className="flex items-center gap-2.5 py-1 px-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={checkedCachePlaylistIds.has(p.id)}
+                  onChange={(e) => onToggleCachePlaylist(p.id, e.target.checked)}
+                  className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded flex-shrink-0"
+                />
+                {p.image ? (
+                  <img src={p.image} alt="" className="h-6 w-6 rounded object-cover flex-shrink-0 bg-gray-200" />
+                ) : (
+                  <Database className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+                )}
+                <span className="truncate flex-1 text-gray-800">{p.name || p.playlist_id}</span>
+                <span className="flex-shrink-0 text-xs text-gray-400">{p.track_count} titre{p.track_count > 1 ? 's' : ''}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {playlists.length > 0 && (
         <div className="space-y-2">
@@ -148,17 +170,19 @@ function BlindTestSetup({ onStart, starting, error }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [sourceType, setSourceType] = useState('library') // 'library' | 'external'
   const [externalPlaylists, setExternalPlaylists] = useState([])
-  const [cachedTracks, setCachedTracks] = useState(null) // null tant que non chargé, [] si vide
+  const [cachedPlaylists, setCachedPlaylists] = useState([]) // playlists déjà résolues par le passé (table external_playlists)
+  const [checkedCachePlaylistIds, setCheckedCachePlaylistIds] = useState(() => new Set())
 
   useEffect(() => {
     getBlindTestConfig().then((cfg) => {
       setAvailableStyles(cfg.available_styles || [])
       setAvailableGenres(cfg.available_genres || [])
     }).catch(() => {})
-    // Chargé d'emblée (pas seulement au passage en mode externe) pour que le
-    // nombre de titres en cache soit déjà affiché dès qu'on ouvre cet onglet.
-    getCachedExternalTracks().then((data) => {
-      setCachedTracks(data.tracks || [])
+    // Chargé d'emblée (pas seulement au passage en mode externe) pour que la
+    // liste des playlists en cache (et leur nombre de titres) soit déjà
+    // affichée dès qu'on ouvre cet onglet.
+    getCachedExternalPlaylists().then((data) => {
+      setCachedPlaylists(data.playlists || [])
     }).catch(() => {})
   }, [])
 
@@ -174,17 +198,34 @@ function BlindTestSetup({ onStart, starting, error }) {
   const resolvePlaylistRow = (id, row) => {
     setExternalPlaylists((rows) => rows.map((r) => (r.id === id ? { ...r, status: 'loading', error: null } : r)))
     const fetcher = row.kind === 'cache'
-      ? getCachedExternalTracks().then((data) => ({ playlist_name: 'Titres déjà en cache', playlist_image: null, tracks: data.tracks || [] }))
+      ? getCachedExternalTracks([row.dbId]).then((data) => ({
+        playlist_name: row.name, playlist_image: row.image, tracks: data.tracks || [],
+      }))
       : resolveExternalPlaylist(row.url)
     fetcher
       .then((data) => {
         setExternalPlaylists((rows) => rows.map((r) => (r.id === id ? {
           ...r,
           status: 'done',
+          dbId: r.dbId ?? data.playlist_db_id,
           name: data.playlist_name,
           image: data.playlist_image,
           tracks: data.tracks || [],
         } : r)))
+        // Une playlist résolue via son lien vient d'être (re)mise en cache côté
+        // serveur : on la fait apparaître (ou on la rafraîchit) dans la liste à
+        // cocher, cochée puisqu'elle est déjà présente dans les liens ajoutés.
+        if (row.kind === 'url' && data.playlist_db_id) {
+          setCachedPlaylists((list) => {
+            const entry = {
+              id: data.playlist_db_id, source: data.source, playlist_id: data.playlist_id,
+              name: data.playlist_name, image: data.playlist_image, track_count: (data.tracks || []).length,
+            }
+            const exists = list.some((p) => p.id === entry.id)
+            return exists ? list.map((p) => (p.id === entry.id ? entry : p)) : [entry, ...list]
+          })
+          setCheckedCachePlaylistIds((s) => new Set(s).add(data.playlist_db_id))
+        }
       })
       .catch((err) => {
         setExternalPlaylists((rows) => rows.map((r) => (r.id === id ? { ...r, status: 'error', error: err.message } : r)))
@@ -193,29 +234,49 @@ function BlindTestSetup({ onStart, starting, error }) {
 
   const addExternalPlaylist = (url) => {
     const id = ++nextPlaylistRowId
-    const row = { id, kind: 'url', url, status: 'loading', name: null, image: null, tracks: [], error: null }
+    const row = { id, kind: 'url', url, dbId: null, status: 'loading', name: null, image: null, tracks: [], error: null }
     setExternalPlaylists((rows) => [...rows, row])
     resolvePlaylistRow(id, row)
   }
 
-  // Réutilise le cache déjà récupéré à l'ouverture de l'écran (pas de nouvel
-  // appel réseau) : l'ajout est donc instantané, pas de statut "loading".
-  const addCachedTracksPlaylist = () => {
-    if (!cachedTracks || cachedTracks.length === 0) return
-    const id = ++nextPlaylistRowId
-    setExternalPlaylists((rows) => [...rows, {
-      id, kind: 'cache', url: null, status: 'done',
-      name: 'Titres déjà en cache', image: null, tracks: cachedTracks, error: null,
-    }])
-  }
-
   const removeExternalPlaylist = (id) => {
+    const row = externalPlaylists.find((r) => r.id === id)
     setExternalPlaylists((rows) => rows.filter((r) => r.id !== id))
+    if (row?.dbId) {
+      setCheckedCachePlaylistIds((s) => {
+        const next = new Set(s)
+        next.delete(row.dbId)
+        return next
+      })
+    }
   }
 
   const retryExternalPlaylist = (id) => {
     const row = externalPlaylists.find((r) => r.id === id)
     if (row) resolvePlaylistRow(id, row)
+  }
+
+  // Coche/décoche une playlist déjà en cache : cocher ajoute une ligne (tracks
+  // récupérées depuis le cache local, pas de nouvel appel à Spotify/YouTube),
+  // décocher la retire — même mécanique que "retirer" sur une ligne classique.
+  const toggleCachePlaylist = (dbId, checked) => {
+    setCheckedCachePlaylistIds((s) => {
+      const next = new Set(s)
+      checked ? next.add(dbId) : next.delete(dbId)
+      return next
+    })
+    if (checked) {
+      const meta = cachedPlaylists.find((p) => p.id === dbId)
+      const id = ++nextPlaylistRowId
+      const row = {
+        id, kind: 'cache', dbId, url: null, status: 'loading',
+        name: meta?.name, image: meta?.image, tracks: [], error: null,
+      }
+      setExternalPlaylists((rows) => [...rows, row])
+      resolvePlaylistRow(id, row)
+    } else {
+      setExternalPlaylists((rows) => rows.filter((r) => r.dbId !== dbId))
+    }
   }
 
   // Fusion dédupliquée (une même track présente dans deux playlists ne compte
@@ -298,10 +359,11 @@ function BlindTestSetup({ onStart, starting, error }) {
             <ExternalPlaylistPicker
               playlists={externalPlaylists}
               onAdd={addExternalPlaylist}
-              onAddCache={addCachedTracksPlaylist}
               onRemove={removeExternalPlaylist}
               onRetry={retryExternalPlaylist}
-              cachedCount={cachedTracks?.length ?? null}
+              cachedPlaylists={cachedPlaylists}
+              checkedCachePlaylistIds={checkedCachePlaylistIds}
+              onToggleCachePlaylist={toggleCachePlaylist}
             />
           </div>
         ) : (

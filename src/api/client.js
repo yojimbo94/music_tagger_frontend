@@ -294,8 +294,13 @@ export function resolveExternalPlaylist(url) {
   })
 }
 
-export function getCachedExternalTracks() {
-  return request('/api/blindtest/external/cached')
+export function getCachedExternalPlaylists() {
+  return request('/api/blindtest/external/playlists')
+}
+
+export function getCachedExternalTracks(playlistIds) {
+  const query = playlistIds?.length ? `?playlist_ids=${playlistIds.join(',')}` : ''
+  return request(`/api/blindtest/external/cached${query}`)
 }
 
 export function startExternalBlindTestRound(payload) {
