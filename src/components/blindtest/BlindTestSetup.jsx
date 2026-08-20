@@ -43,7 +43,7 @@ let nextPlaylistRowId = 0
  */
 function ExternalPlaylistPicker({
   playlists, onAdd, onRemove, onRetry,
-  cachedPlaylists, checkedCachePlaylistIds, onToggleCachePlaylist,
+  cachedPlaylists, checkedCachePlaylistIds, onToggleCachePlaylist, onToggleAllCachePlaylists,
 }) {
   const [url, setUrl] = useState('')
 
@@ -84,9 +84,29 @@ function ExternalPlaylistPicker({
           cf. backend) — cocher/décocher pour rejouer sans recoller leur lien. */}
       {cachedPlaylists.length > 0 && (
         <div className="rounded-lg border border-gray-200 p-3 space-y-2">
-          <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
-            <Database className="h-3.5 w-3.5" />
-            Playlists déjà en cache ({cachedPlaylists.length}, {cachedTotalTracks} titre{cachedTotalTracks > 1 ? 's' : ''} au total)
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+              <Database className="h-3.5 w-3.5" />
+              Playlists déjà en cache ({cachedPlaylists.length}, {cachedTotalTracks} titre{cachedTotalTracks > 1 ? 's' : ''} au total)
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => onToggleAllCachePlaylists(true)}
+                disabled={checkedCachePlaylistIds.size === cachedPlaylists.length}
+                className="text-xs text-blue-600 hover:text-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Tout cocher
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleAllCachePlaylists(false)}
+                disabled={checkedCachePlaylistIds.size === 0}
+                className="text-xs text-blue-600 hover:text-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Tout décocher
+              </button>
+            </div>
           </div>
           <div className="space-y-1 max-h-48 overflow-y-auto">
             {cachedPlaylists.map((p) => (
@@ -279,6 +299,15 @@ function BlindTestSetup({ onStart, starting, error }) {
     }
   }
 
+  // "Tout cocher"/"tout décocher" : rejoue toggleCachePlaylist par playlist
+  // pour rester sur le même chemin (chargement individuel des tracks, retrait
+  // symétrique) plutôt que de dupliquer la logique.
+  const toggleAllCachePlaylists = (checked) => {
+    for (const p of cachedPlaylists) {
+      if (checked !== checkedCachePlaylistIds.has(p.id)) toggleCachePlaylist(p.id, checked)
+    }
+  }
+
   // Fusion dédupliquée (une même track présente dans deux playlists ne compte
   // qu'une fois) des tracks des playlists résolues avec succès.
   const externalTracks = useMemo(() => {
@@ -364,6 +393,7 @@ function BlindTestSetup({ onStart, starting, error }) {
               cachedPlaylists={cachedPlaylists}
               checkedCachePlaylistIds={checkedCachePlaylistIds}
               onToggleCachePlaylist={toggleCachePlaylist}
+              onToggleAllCachePlaylists={toggleAllCachePlaylists}
             />
           </div>
         ) : (
