@@ -294,6 +294,10 @@ export function resolveExternalPlaylist(url) {
   })
 }
 
+export function getCachedExternalTracks() {
+  return request('/api/blindtest/external/cached')
+}
+
 export function startExternalBlindTestRound(payload) {
   return request('/api/blindtest/external/round', {
     method: 'POST',
